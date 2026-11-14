@@ -24,14 +24,14 @@ This file replaces Todo_List.pdf. Nothing is ticked.
    Add them to the mock frames so flags and noise features can be built and tested early.
 5. [✔] Cutout, stretch, PNG (#2, #12) (Part B)
    Cut by sky position using WCS, apply percentile/log/sqrt stretch, save as PNG.
-6. [ ] Config switch (Part E)
-       Create config.py with USE_MOCK, default FOV, max frames and the release name.
-7. [ ] Config limits and units (new) (Part E)
-       Add MIN_FOV_ARCMIN and MAX_FOV_ARCMIN. Add DEFAULT_FOV_ARCMIN so everything uses arcminutes (config.py currently has degrees, FRAME_FORMAT.md uses arcminutes).
-8. [ ] Cache (Part A)
-       Save cutouts in cache/ keyed by RA, Dec, FOV and release so repeat requests are instant.
-9. [ ] Frames endpoint (#3, M3) (Part C)
-       Return the frame list with image links, dates, detectors and wavelengths. Also serve static/. Include the pixel scale and centre so the page can show sky positions on hover (new).
+6. [✔] Config switch (Part E)
+   Create config.py with USE_MOCK, default FOV, max frames and the release name.
+7. [✔] Config limits and units (new) (Part E)
+   Add MIN_FOV_ARCMIN and MAX_FOV_ARCMIN. Add DEFAULT_FOV_ARCMIN so everything uses arcminutes (config.py currently has degrees, FRAME_FORMAT.md uses arcminutes).
+8. [✔] Cache (Part A)
+   Save cutouts in cache/ keyed by RA, Dec, FOV and release so repeat requests are instant.
+9. [✔] Frames endpoint (#3, M3) (Part C)
+   Return the frame list with image links, dates, detectors and wavelengths. Also serve static/. Include the pixel scale and centre so the page can show sky positions on hover (new).
 10. [ ] Flexible coordinate input (new) (Part E)
         A helper that accepts plain degrees and sexagesimal text such as 08h55m10.8s -07d14m42s. Rejects nonsense with a friendly message.
 11. [ ] URL parameters and validation (#7, #9) (Part C)

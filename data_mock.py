@@ -2,7 +2,10 @@
 # Makes 12 fake SPHEREx-like FITS images with one moving dot.
 # Each file has 3 parts: the image, a FLAGS map and a VARIANCE map.
 # Run it with:  python data_mock.py
-# It only WRITES files into data/mock/. It never makes PNGs or pictures.
+# Running it only WRITES files into data/mock/. It never makes PNGs or pictures.
+#
+# NEW (Backend 9): get_frames() at the bottom READS those files back and
+# returns them as frames (see FRAME_FORMAT.md). The web server uses it.
 
 import math
 from datetime import datetime, timedelta
@@ -12,6 +15,7 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 
+from processing import cutout_frame      # NEW: used by get_frames()
 from targets import TARGETS, position_at_epoch
 
 # ---------- Settings you can change ----------
@@ -27,7 +31,7 @@ DOT_AMPLITUDE = 200.0            # dot is the brightest thing in the image
 DOT_SIGMA_PIX = 1.2              # dot size
 SEED = 42                        # makes the noise the same every run
 
-# NEW: flag settings. These bit meanings are INVENTED for the mock.
+# Flag settings. These bit meanings are INVENTED for the mock.
 # Real SPHEREx bit meanings must be loaded from its documentation later.
 FLAG_BAD = 1                     # bit value 1: dead pixel
 FLAG_COSMIC = 2                  # bit value 2: cosmic ray hit
@@ -79,7 +83,6 @@ def add_blob(image, x, y, amplitude, sigma):
     image += amplitude * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * sigma ** 2))
 
 
-# NEW
 def random_pixels_off_dot_track(n, rng):
     """Pick n random pixel positions (x, y) that stay away from the dot's path.
 
@@ -92,7 +95,6 @@ def random_pixels_off_dot_track(n, rng):
     return x, y
 
 
-# NEW
 def make_flags_and_variance(image, bad_xy, rng):
     """Create the FLAGS and VARIANCE maps, and put defects into the image.
 
@@ -133,7 +135,7 @@ def generate_mock_frames():
     ra_c, dec_c = dot_sky_position(mid_days)
     wcs = make_wcs(ra_c, dec_c)
 
-    # NEW: dead pixels are chosen once, so they are in the same place every frame
+    # Dead pixels are chosen once, so they are in the same place every frame
     bad_xy = random_pixels_off_dot_track(N_BAD_PIXELS, np.random.default_rng(SEED + 1000))
 
     for i in range(N_FRAMES):
@@ -155,7 +157,7 @@ def generate_mock_frames():
         dot_x, dot_y = wcs.wcs_world2pix(ra, dec, 0)           # 0 = pixels counted from 0
         add_blob(image, float(dot_x), float(dot_y), DOT_AMPLITUDE, DOT_SIGMA_PIX)
 
-        # NEW: flags and variance (this also adds cosmic rays and dead pixels)
+        # Flags and variance (this also adds cosmic rays and dead pixels)
         flags, variance = make_flags_and_variance(image, bad_xy, rng)
 
         # Build the FITS file: image + header
@@ -167,7 +169,7 @@ def generate_mock_frames():
         hdu.header["DOTX"] = (float(dot_x), "TRUE dot x pixel (for testing)")
         hdu.header["DOTY"] = (float(dot_y), "TRUE dot y pixel (for testing)")
 
-        # NEW: two extra parts of the file, named so we can find them later
+        # Two extra parts of the file, named so we can find them later
         flags_hdu = fits.ImageHDU(data=flags, name="FLAGS")
         flags_hdu.header["FLAG_1"] = "bad pixel (mock)"
         flags_hdu.header["FLAG_2"] = "cosmic ray (mock)"
@@ -177,6 +179,50 @@ def generate_mock_frames():
         path = OUT_DIR / f"mock_{i:02d}.fits"
         fits.HDUList([hdu, flags_hdu, var_hdu]).writeto(path, overwrite=True)
         print("wrote", path.name)
+
+
+# ---------- NEW (Backend 9): reading the mock files back ----------
+
+def load_mock_frame(path):
+    """Read one mock FITS file and return a frame dictionary (FRAME_FORMAT.md)."""
+    with fits.open(path) as hdul:
+        hdr = hdul[0].header
+        return {
+            "image": np.array(hdul[0].data, dtype=float),
+            "wcs": WCS(hdr),
+            "obs_time": datetime.fromisoformat(hdr["DATE-OBS"]),
+            "wavelength_um": float(hdr["WAVE_UM"]),
+            "detector": int(hdr["DETECTOR"]),
+            "flags": np.array(hdul["FLAGS"].data),
+            "variance": np.array(hdul["VARIANCE"].data, dtype=float),
+            "source_file": path.name,
+        }
+
+
+def get_frames(ra_deg, dec_deg, fov_arcmin):
+    """The mock data source (signature from FRAME_FORMAT.md).
+
+    Returns a list of frames sorted by obs_time. Each frame is already a
+    small square cutout, fov_arcmin wide, centred on (ra_deg, dec_deg).
+    Mock images that do not cover that position are left out, so the
+    list can be empty. The real source (data_irsa.py) will behave the same way.
+    """
+    if fov_arcmin <= 0:
+        raise ValueError("Field of view must be greater than zero.")
+
+    files = sorted(OUT_DIR.glob("mock_*.fits"))
+    if not files:
+        raise FileNotFoundError("No mock files found. Run: python data_mock.py")
+
+    frames = []
+    for path in files:
+        frame = load_mock_frame(path)
+        try:
+            frames.append(cutout_frame(frame, ra_deg, dec_deg, fov_arcmin))
+        except ValueError:
+            continue          # this image does not cover the requested position
+    frames.sort(key=lambda f: f["obs_time"])
+    return frames
 
 
 if __name__ == "__main__":

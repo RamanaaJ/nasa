@@ -15,12 +15,18 @@
 import pickle
 import re
 import sys
+import threading
 from pathlib import Path
 
 import config
 
 # Where cached files go. Folder is inside cache/, which is already in .gitignore.
 CUTOUT_DIR = config.CACHE_DIR / "cutouts"
+
+# The web server answers several requests at the same time (the page asks for
+# 12 images at once). This lock makes sure only one request at a time does the
+# slow "load and save" work, so we never download or write the same thing twice.
+_load_lock = threading.Lock()
 
 # Rounding used when building the file name. Two requests that differ by less
 # than this count as the same request.
@@ -104,9 +110,14 @@ def get_or_load(ra_deg, dec_deg, fov_arcmin, loader, release=None, cache_dir=Non
     frames = get(ra_deg, dec_deg, fov_arcmin, release, cache_dir)
     if frames is not None:
         return frames
-    frames = loader(ra_deg, dec_deg, fov_arcmin)
-    save(frames, ra_deg, dec_deg, fov_arcmin, release, cache_dir)
-    return frames
+    with _load_lock:
+        # Another request may have finished the same job while we waited
+        frames = get(ra_deg, dec_deg, fov_arcmin, release, cache_dir)
+        if frames is not None:
+            return frames
+        frames = loader(ra_deg, dec_deg, fov_arcmin)
+        save(frames, ra_deg, dec_deg, fov_arcmin, release, cache_dir)
+        return frames
 
 
 def cache_info(cache_dir=None):

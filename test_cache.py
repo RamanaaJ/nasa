@@ -4,6 +4,7 @@
 # deletes that folder at the end.
 
 import shutil
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -126,7 +127,28 @@ config.USE_MOCK = saved_flag
 check("mock key differs from real key", mock_key != real_key)
 check("real key contains the release name", config.RELEASE_NAME in real_key)
 
-print("\n--- Test 8: a real WCS survives (needs astropy) ---")
+print("\n--- Test 8: many requests at once (like the web page asking for 12 images) ---")
+thread_calls = []
+
+
+def counting_loader(ra, dec, fov):
+    thread_calls.append(1)
+    time.sleep(0.2)
+    return fake_frames()
+
+
+results = []
+threads = [threading.Thread(
+    target=lambda: results.append(cache.get_or_load(90, 45, 6, counting_loader, "mock", TEST_DIR)))
+    for _ in range(8)]
+for th in threads:
+    th.start()
+for th in threads:
+    th.join()
+check("8 simultaneous requests gave 8 answers", len(results) == 8 and all(len(r) == 3 for r in results))
+check("the loader ran only once", len(thread_calls) == 1)
+
+print("\n--- Test 9: a real WCS survives (needs astropy) ---")
 try:
     from astropy.wcs import WCS
     w = WCS(naxis=2)

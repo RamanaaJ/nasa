@@ -16,6 +16,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 6: config.py with USE_MOCK, RELEASE_NAME, DEFAULT_FOV_ARCMIN, MAX_FRAMES, plus MOCK_DIR / CACHE_DIR paths. python config.py prints the settings.
 - Todo Backend 7: config.py now has MIN_FOV_ARCMIN (1.0) and MAX_FOV_ARCMIN (30.0) next to DEFAULT_FOV_ARCMIN (6.0); all FOV values in arcminutes. Limits are not enforced yet.
 - Todo Backend 8: cache.py saves lists of frames in cache/cutouts/, keyed by release, RA, Dec and FOV; get_or_load(ra, dec, fov, loader) returns cached frames or calls the loader; test_cache.py checks it.
+- Todo Backend 9: main.py (FastAPI) with GET /api/frames (list with image links, dates, detectors, wavelengths, pixel scale, centre), GET /api/frames/{index}/image (PNG) and static/ serving; data_mock.py now has get_frames() (cutouts from the mock files); cache.py uses a lock for simultaneous requests; test_frames_api.py checks the endpoint.
 
 ## In progress
 
@@ -23,7 +24,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 9: Frames endpoint (waiting for go-ahead)
+- Todo Backend 10: Flexible coordinate input (waiting for go-ahead)
 
 ## Decisions made
 
@@ -50,6 +51,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - Cache key = release + RA + Dec + FOV (rounded: 5 decimals for RA/Dec, 3 for FOV). Mock data uses the key "mock", real data uses config.RELEASE_NAME.
 - Cache files are pickle files (fine for our own local cache; never load cache files from other people). Empty "no images" results are not cached.
 - After re-running data_mock.py, run python cache.py clear.
+- get_frames() returns cutouts (fov_arcmin wide), already cut around the requested position; the cache stores these cutouts.
+- Frame list gives pixel scale and centre per frame (real pointings will differ). Hover maths assumes north up and east left; recheck on real data.
+- Basic range checks use FastAPI (422); friendly errors come in Backend 11 and 14.
+- Run the server with: uvicorn main:app --reload
 
 ## Known problems
 
@@ -68,6 +73,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - MAX_FRAMES = 50 and RELEASE_NAME = "spherex_qr2" are placeholders, not verified values
 - FOV limits exist in config.py but are not enforced yet (Backend 11 and 15)
 - cache.py is not used by anything yet; the Frames endpoint (Backend 9) will call get_or_load. config.py's CACHE_DIR is used by cache.py.
+- Real data returns 501 until data_irsa.py exists (Backend 25).
 
 ## How to run and test
 
@@ -76,3 +82,5 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_processing.py (needs data/mock/ files; saves PNGs in cache/test_png/)
 - python config.py (prints all settings)
 - python test_cache.py (checks the cache) and - python cache.py (shows cache size) / python cache.py clear (empties it)
+- uvicorn main:app --reload (start the server; docs at http://127.0.0.1:8000/docs)
+- python test_frames_api.py (with the server running)
