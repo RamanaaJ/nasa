@@ -10,6 +10,7 @@
 from dataclasses import dataclass
 import math
 
+import cache          # NEW: for FOV_DECIMALS, so the cache key and the cutout agree
 import config
 import coords
 import processing
@@ -56,7 +57,9 @@ def parse_fov(value):
         raise RequestError(
             f"The field of view must be between {config.MIN_FOV_ARCMIN:g} and "
             f"{config.MAX_FOV_ARCMIN:g} arcminutes (you asked for {fov:g}).")
-    return fov
+    # Round the same way the cache key does, so a request and its cache file
+    # always describe the same cutout (6.0004 and 6.0 are the same request).
+    return round(fov, cache.FOV_DECIMALS)
 
 
 def parse_stretch(value):

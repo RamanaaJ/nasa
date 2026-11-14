@@ -3,6 +3,7 @@
 # Then open  http://127.0.0.1:8000/docs  to try the endpoints in your browser.
 #
 # Jobs:
+#   GET /api/limits                                          field-of-view limits (JSON)
 #   GET /api/targets?year=..                                 the 5 preset targets (JSON)
 #   GET /api/frames?ra=..&dec=..&fov=..&mode=..&stretch=..   list of frames (JSON)
 #   GET /api/frames/{index}/image?...                        one frame as a PNG picture
@@ -188,6 +189,17 @@ def list_targets(year: str | None = Query(None, description=YEAR_HELP)):
         "epoch": "J2000" if epoch is None else epoch,
         "count": len(items),
         "targets": items,
+    }
+
+@app.get("/api/limits")
+def get_limits():
+    """The field-of-view limits, so the page can build its FOV control."""
+    return {
+        "fov_arcmin": {
+            "min": config.MIN_FOV_ARCMIN,
+            "max": config.MAX_FOV_ARCMIN,
+            "default": config.DEFAULT_FOV_ARCMIN,
+        },
     }
 
 # Serve the web page files. This MUST stay last, because it matches every other address.

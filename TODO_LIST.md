@@ -42,8 +42,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Send the 5 presets to the page so the buttons come from one source.
 14. [✔] Friendly errors (#11) (Part C)
     Return clear JSON messages for no images, bad input, slow data and server errors.
-15. [ ] FOV handling (#9) (Part B)
-        Make cutout size a parameter and set sensible minimum and maximum limits.
+15. [✔] FOV handling (#9) (Part B)
+    Make cutout size a parameter and set sensible minimum and maximum limits.
 16. [ ] asinh stretch (new) (Part B)
         Add "asinh" to the stretch modes. Good for faint things next to bright ones.
 17. [ ] Background-level matching (new) (Part B)

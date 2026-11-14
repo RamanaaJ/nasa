@@ -19,8 +19,8 @@ RELEASE_NAME = "spherex_qr2"
 
 # ---------- Field of view ----------
 # All field-of-view values in this project use ARCMINUTES (see FRAME_FORMAT.md).
-# The limits below are NOT enforced yet. Enforcement comes in Backend 11
-# (URL validation) and Backend 15 (FOV handling).
+# The limits below are enforced by params.py (Backend 11) and sent to the
+# page by GET /api/limits (Backend 15).
 MIN_FOV_ARCMIN = 1.0       # smallest patch allowed (guess; retune on real data)
 DEFAULT_FOV_ARCMIN = 6.0   # matches the FOV used in test_processing.py
 # Must be big enough to show Eps Ind B and its star (about 6.7 arcmin apart).

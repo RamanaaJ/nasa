@@ -23,6 +23,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 12: names.py (resolve_name, resolve_local, NameSearchError, NameResult) turns a name into RA/Dec. Checks the 5 local targets first (offline, spelling-tolerant), then astropy's SkyCoord.from_name; friendly message if the online lookup fails. test_names.py checks it with a fake online service. Not connected to main.py/URL yet.
 - Todo Backend 13: targets.py has target_list(year=None); main.py has GET /api/targets?year=.. returning the 5 preset targets (id, label, simbad_name, ra/dec at the chosen epoch, J2000 ra/dec, proper motion, note). Optional year moves positions with position_at_epoch(). Bad year gives HTTP 400. test_targets.py checks it (offline part + server part).
 - Todo Backend 14: errors.py holds the message wording; main.py has handlers so every error is JSON {"detail": "friendly sentence"}: missing settings (422), stock 404/405 wording, unexpected crashes (500, details only in the terminal). frames_for() now has a TimeoutError -> 504 branch and a no-images 404 that names the position. test_errors.py checks it (offline part + server part). All checks passed live.
+- Todo Backend 15: FOV handling. params.py rounds fov to 3 decimals (same as the cache key); main.py has GET /api/limits (min, max, default FOV in arcmin, from config.py); config.py comment corrected (limits are enforced). test_fov.py checks cutout sizes at 1, 3, 6, 15 and 30 arcmin, the limits and rounding (offline part + server part).
 
 ## In progress
 
@@ -30,7 +31,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 15: FOV handling (waiting for go-ahead)
+- Todo Backend 16: asinh stretch (waiting for go-ahead)
 
 ## Decisions made
 
@@ -74,6 +75,8 @@ M1: Mock data generator (preparing: verifying targets first)
 - Error format: every API error is {"detail": "<one friendly sentence>"}, so the page can show detail directly. Status codes: 400 bad value, 404 no images / no such frame / no such address, 405 wrong request type, 422 missing or wrongly typed setting (kept as 422 so test_frames_api.py is unchanged), 500 unexpected crash, 501 real data not connected, 503 mock files missing, 504 data source too slow.
 - Unexpected crashes show a generic message to the visitor; the real error and traceback go to the uvicorn terminal.
 - Real data code (data_irsa.py) must raise TimeoutError for a slow download so frames_for() can turn it into HTTP 504.
+- FOV is rounded to 3 decimals in params.parse_fov (cache.FOV_DECIMALS), so the cache key and the cutout always match. The range check uses the unrounded value.
+- /api/limits is the single source for the page's FOV control (min, max, default in arcmin, all from config.py).
 
 ## Known problems
 
@@ -100,6 +103,8 @@ M1: Mock data generator (preparing: verifying targets first)
 - The 504 (slow data) branch is untested against real data; nothing raises TimeoutError yet. Revisit in after-data #10 (Robust downloading).
 - The 500 handler was not triggered in the live test (optional step 5 in the Backend 14 instructions); it is only checked by reading the code.
 - Environment: Python 3.15 could not install PyYAML on Windows (no C++ compiler). The project uses Python 3.13; the venv was rebuilt with `py -3.13 -m venv venv`.
+- A FOV bigger than the image gives a cutout with NaN (black) edges; this is expected. On the mock data (about 10.3 arcmin wide) anything above about 10 arcmin has black edges.
+- MAX_FRAMES (config.py) is still not enforced anywhere. Planned for after-data #8 (Sort, group, limit).
 
 ## How to run and test
 
@@ -116,3 +121,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_targets.py (offline part always; server part if uvicorn is running)
   python test_errors.py (offline part always; server part if uvicorn is running)
 - First-time setup in a fresh clone: py -3.13 -m venv venv, .\venv\Scripts\Activate.ps1, pip install -r requirements.txt, python data_mock.py, python cache.py clear
+- python test_fov.py (cutout sizes and limits; server part if uvicorn is running)
