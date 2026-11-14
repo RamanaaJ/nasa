@@ -17,6 +17,8 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 7: config.py now has MIN_FOV_ARCMIN (1.0) and MAX_FOV_ARCMIN (30.0) next to DEFAULT_FOV_ARCMIN (6.0); all FOV values in arcminutes. Limits are not enforced yet.
 - Todo Backend 8: cache.py saves lists of frames in cache/cutouts/, keyed by release, RA, Dec and FOV; get_or_load(ra, dec, fov, loader) returns cached frames or calls the loader; test_cache.py checks it.
 - Todo Backend 9: main.py (FastAPI) with GET /api/frames (list with image links, dates, detectors, wavelengths, pixel scale, centre), GET /api/frames/{index}/image (PNG) and static/ serving; data_mock.py now has get_frames() (cutouts from the mock files); cache.py uses a lock for simultaneous requests; test_frames_api.py checks the endpoint.
+- Todo Backend 9 checked live: all test_frames_api.py checks passed (cleanup bug on Windows fixed).
+- Todo Backend 10: coords.py (parse_coordinates, parse_ra, parse_dec, CoordinateError) accepts degrees, 08h55m10.8s, 08:55:10.8 and 08 55 10.8 forms and gives friendly errors; test_coords.py checks it.
 
 ## In progress
 
@@ -24,7 +26,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 10: Flexible coordinate input (waiting for go-ahead)
+- Todo Backend 11: URL parameters and validation (waiting for go-ahead)
 
 ## Decisions made
 
@@ -55,6 +57,8 @@ M1: Mock data generator (preparing: verifying targets first)
 - Frame list gives pixel scale and centre per frame (real pointings will differ). Hover maths assumes north up and east left; recheck on real data.
 - Basic range checks use FastAPI (422); friendly errors come in Backend 11 and 14.
 - Run the server with: uvicorn main:app --reload
+- coords.py: plain numbers are degrees; sexagesimal RA without a unit letter is hours; Dec is always degrees. Pure Python, no astropy.
+- CoordinateError subclasses ValueError. Name search (Backend 12) is a separate step.
 
 ## Known problems
 
@@ -74,6 +78,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - FOV limits exist in config.py but are not enforced yet (Backend 11 and 15)
 - cache.py is not used by anything yet; the Frames endpoint (Backend 9) will call get_or_load. config.py's CACHE_DIR is used by cache.py.
 - Real data returns 501 until data_irsa.py exists (Backend 25).
+- coords.py is not used by main.py yet (Backend 11 will connect it). Decimal commas (133,8) are not supported; a comma means "separator".
 
 ## How to run and test
 
@@ -84,3 +89,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_cache.py (checks the cache) and - python cache.py (shows cache size) / python cache.py clear (empties it)
 - uvicorn main:app --reload (start the server; docs at http://127.0.0.1:8000/docs)
 - python test_frames_api.py (with the server running)
+- python test_coords.py (checks coordinate parsing) and python coords.py "08h55m10.8s -07d14m42s" (try one by hand)

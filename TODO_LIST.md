@@ -32,8 +32,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
    Save cutouts in cache/ keyed by RA, Dec, FOV and release so repeat requests are instant.
 9. [✔] Frames endpoint (#3, M3) (Part C)
    Return the frame list with image links, dates, detectors and wavelengths. Also serve static/. Include the pixel scale and centre so the page can show sky positions on hover (new).
-10. [ ] Flexible coordinate input (new) (Part E)
-        A helper that accepts plain degrees and sexagesimal text such as 08h55m10.8s -07d14m42s. Rejects nonsense with a friendly message.
+10. [✔] Flexible coordinate input (new) (Part E)
+    A helper that accepts plain degrees and sexagesimal text such as 08h55m10.8s -07d14m42s. Rejects nonsense with a friendly message.
 11. [ ] URL parameters and validation (#7, #9) (Part C)
         Accept ra, dec, fov, mode, stretch. Reject bad ranges (RA 0-360, Dec -90 to 90).
 12. [ ] Search by name (new) (Part E)
