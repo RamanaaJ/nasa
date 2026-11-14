@@ -33,10 +33,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import cache
 import config
+import coords
 import data_mock
 import errors
 import names
 import params
+import practice_check
 import processing
 import targets
 
@@ -281,6 +283,27 @@ def list_targets(year: str | None = Query(None, description=YEAR_HELP)):
         "targets": items,
     }
 
+@app.get("/api/practice/check")
+def practice_check_click(
+    ra: str = Query(..., description="RA of the click. " + RA_HELP),
+    dec: str = Query(..., description="Dec of the click. " + DEC_HELP),
+    frame: int = Query(..., description="Frame number the click was made on (0 = first)."),
+):
+    """Practice game: is the clicked position on a hidden mover in that frame?
+
+    Answers only hit or miss (and which mover on a hit), never the answers themselves.
+    """
+    try:
+        ra_deg = coords.parse_ra(ra)
+        dec_deg = coords.parse_dec(dec)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    try:
+        return practice_check.check_click(ra_deg, dec_deg, frame)
+    except FileNotFoundError as err:               # data_practice.py was never run
+        raise HTTPException(status_code=503, detail=str(err))
+    except ValueError as err:                      # no such frame number
+        raise HTTPException(status_code=404, detail=str(err))
 
 @app.get("/api/limits")
 def get_limits():
