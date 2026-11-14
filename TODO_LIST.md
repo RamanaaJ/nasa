@@ -60,8 +60,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Use position_at_epoch() to return where a known star should be on each frame's date. Add a small endpoint for it (Part C).
 23. [✔] Practice mock files (new) (Part A)
     A second mock set with several dots moving at different speeds, for the practice game. Keep the answers in a separate file.
-24. [ ] Practice game answer check (new) (Part C)
-        A small endpoint that says whether a clicked position is close enough to a hidden mover.
+24. [✔] Practice game answer check (new) (Part C)
+    A small endpoint that says whether a clicked position is close enough to a hidden mover.
 25. [ ] Real data skeleton (#5) (Part A)
         Create data_irsa.py with empty documented functions and the same output format as the mock.
 26. [ ] Try one real query by hand (Part A)
