@@ -28,6 +28,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 17: background-level matching. processing.py has estimate_background (median), match_backgrounds (shifts every frame to a common level, returns new frames), shared_limits (one black/white point pair for all frames) and stretch_image(limits=...). params.py has parse_match (match=on/off, default off); main.py passes match to /api/frames and /api/frames/{index}/image and puts match=on/off in the image links. test_background.py checks it (offline parts + server part).
 - Todo Backend 18: difference imaging. processing.py has difference_frames (subtract the first or the previous frame, returns new frames), shared_difference_limit and stretch_difference (grey = no change, white = brighter, black = dimmer, one shared scale). params.py has parse_ref (ref=first|previous, default first) and "difference" is now in READY_MODES. main.py passes ref to /api/frames and /api/frames/{index}/image and puts ref in the image links. Old tests that used mode=difference as "not built yet" now use mode=stack. test_difference.py checks it (offline parts + server part).
 - Todo Backend 19: stacking. processing.py has stack_frames (mean or sum, grouped by detector or all frames together; returns new frames sorted by mean time with n_stacked, mean wavelength, combined variance and OR-ed flags). params.py has parse_combine (combine=mean|sum, default mean) and parse_group (group=detector|all, default detector), and "stack" is now in READY_MODES. main.py passes combine and group to /api/frames and /api/frames/{index}/image, puts them in the image links, adds n_stacked to each frame, and in stack mode the frame list is the stacked list (6 frames on the mock data with group=detector). Old tests that used mode=stack as "not built yet" were changed (test_params.py, test_frames_api.py, test_difference.py). test_stack.py checks it (offline parts + server part).
+- Todo Backend 20: motion trail data. processing.py has find_moving_dot (fixed sky = median of all frames, subtract, brightest leftover spot + centroid; returns one dictionary per frame with found, x, y, png_x, png_y, ra_deg, dec_deg, snr, obs_time) and pixel_to_png_position (data pixel -> position in the PNG, undoing the north-up flip and the whole-number enlargement). image_to_png_bytes now shares \_png_factor with it. Not connected to main.py yet. test_trail.py checks it (offline parts + mock-data part).
 
 ## In progress
 
@@ -35,7 +36,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 20: Motion trail data (waiting for go-ahead)
+- Todo Backend 21: Colour picture from 3 wavelengths (waiting for go-ahead)
 
 ## Decisions made
 
@@ -93,6 +94,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - A stacked frame keeps the first frame's WCS and other keys, and gets: obs_time = mean time, wavelength_um = mean wavelength, detector = the detector number (0 when group=all, meaning "several detectors"), n_stacked = number of frames added, variance combined (mean: sum of variances / n^2; sum: sum of variances), flags OR-ed, source_file = "stack of N: ...". /api/frames shows n_stacked for every frame (1 for unstacked frames).
 - NaN pixels are skipped when stacking; a pixel that is NaN in every frame stays NaN.
 - Stacked frames are sorted by their mean observation time.
+- Trail positions: x, y are pixel numbers counted from 0, with y counted from the bottom row (FITS way). png_x, png_y are in the PNG (top-left origin, north up, after enlargement), ready for the page to draw on.
+- find_moving_dot needs at least 3 frames of the same size (HTTP 400 once wired in). A spot must stand out by TRAIL_MIN_SNR = 5 times the noise (guess, retune on real data); noise = robust sigma (MAD) of the frame minus the fixed sky. Each frame's own median is removed first, so different background levels do not matter.
+- Centroid uses the pixels within TRAIL_CENTROID_HALF = 3 of the brightest one that are above 2 sigma. snr is capped at 9999 so it is JSON-friendly.
 
 ## Known problems
 
@@ -135,6 +139,12 @@ M1: Mock data generator (preparing: verifying targets first)
 - Sum and mean give the SAME picture, because the brightness stretch rescales every picture (a sum is just the mean times N). They differ only in the numbers (flux, variance), which matter later for spectra and the hover readout.
 - A sum of a pixel that is NaN in some frames adds fewer frames, so it is a little smaller than its neighbours (only matters at image edges).
 - In stack mode the frame numbers differ from normal mode, so a page must reload the frame list when the mode changes.
+- The trail is not connected to main.py (no endpoint yet). It needs a go-ahead; Todo Backend 22 plans a small endpoint for the expected path.
+- The median method removes very slow movers. A dot that stays near the same pixels in half the frames or more is partly absorbed into the "fixed sky". Real WISE 0855 moves about 8 arcsec/year, which is about one SPHEREx pixel per 9 months, so it may NOT be found this way on real data. Expected-path tracking (Backend 22) or a user-placed starting point may be needed. Revisit in after-data #12 and #22.
+- Same pixel-grid assumption as difference and stack: real pointings need re-aligning first (after-data #11).
+- Flags are not used (real bits unknown). A cosmic ray is only rejected because it is fainter than the dot. Bright fixed-star variability or a brighter artefact can be picked instead of the mover.
+- On pure noise the strongest spot reaches about 4 to 5 sigma, close to the 5-sigma limit, so real noisy data may need a higher limit or flags.
+- Mock-data check (Part 5 of test_trail.py) has not been run by me; run it and note the result.
 
 ## How to run and test
 
@@ -156,3 +166,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_background.py (background matching; server part if uvicorn is running)
 - python test_difference.py (difference imaging; server part if uvicorn is running)
 - python test_stack.py (stacking; server part if uvicorn is running)
+- python test_trail.py (motion trail; mock-data part needs data/mock/ files)

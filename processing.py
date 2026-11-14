@@ -8,10 +8,13 @@
 #      same brightness scale in every frame
 #   6. difference_frames() / stretch_difference()   (Backend 18)
 #   7. stack_frames()    (Backend 19) add or average frames to cut noise
+#   8. find_moving_dot() (Backend 20) work out the moving dot's position in
+#      each frame, so the page can draw a motion trail through them
 # This file never downloads data and never reads files.
 # A "frame" is a dictionary described in FRAME_FORMAT.md.
 
 import io
+import warnings
 from datetime import timedelta
 
 import numpy as np
@@ -156,6 +159,11 @@ def shared_limits(frames, low_pct=1.0, high_pct=99.5):
     return float(vmin), float(vmax)
 
 
+def _png_factor(height, width, target_size=400):
+    """Whole-number enlargement used by image_to_png_bytes (1 = not enlarged)."""
+    return max(1, target_size // max(height, width))
+
+
 def image_to_png_bytes(grey, target_size=400):
     """Turn a uint8 grey array into PNG bytes (the contents of a .png file).
 
@@ -166,7 +174,7 @@ def image_to_png_bytes(grey, target_size=400):
     height, width = grey.shape
     picture = Image.fromarray(np.ascontiguousarray(np.flipud(grey)))
 
-    factor = max(1, target_size // max(height, width))
+    factor = _png_factor(height, width, target_size)
     if factor > 1:
         picture = picture.resize((width * factor, height * factor),
                                  Image.Resampling.NEAREST)
@@ -361,3 +369,120 @@ def stack_frames(frames, combine="mean", group="detector"):
               for key, members in groups.items()]
     result.sort(key=lambda f: f["obs_time"])
     return result
+
+
+# ---------- Backend 20: motion trail data ----------
+
+# A spot counts as "found" only if it stands out from the noise by this many
+# times. 5 is a starting guess; retune on real data (after-data #15).
+TRAIL_MIN_SNR = 5.0
+# The position is refined using the pixels this close to the brightest one
+TRAIL_CENTROID_HALF = 3
+# Largest signal-to-noise we report (keeps the number JSON-friendly)
+TRAIL_SNR_CAP = 9999.0
+
+
+def pixel_to_png_position(x, y, height, width, target_size=400):
+    """Where a data pixel ends up in the PNG made by image_to_png_bytes().
+
+    x, y: pixel position in the frame image, counted from 0. y counts from
+          the BOTTOM row (the FITS way). The PNG is flipped so north is up
+          and is enlarged by a whole-number factor, so this undoes both.
+    Returns (png_x, png_y) measured from the top-left corner of the PNG,
+    in PNG pixels. The page can draw a circle or line point there.
+    """
+    factor = _png_factor(height, width, target_size)
+    return (x + 0.5) * factor, (height - 1 - y + 0.5) * factor
+
+
+def find_moving_dot(frames, min_snr=TRAIL_MIN_SNR):
+    """Work out where the moving dot is in each frame. Returns a list with
+    one dictionary per frame, in the same order as `frames`.
+
+    How it works (simple version):
+      1. The fixed sky is the MEDIAN of all frames. Fixed stars are in the
+         same place every time, so they stay in the median. A moving dot is
+         in a different place each time, so it does not.
+      2. Each frame minus the fixed sky leaves (mostly) just the moving dot.
+      3. The brightest leftover spot is the dot. Its position is refined
+         with a small centroid (weighted average of the pixels around it).
+      4. If the spot does not stand out from the noise by min_snr times,
+         the frame is marked found=False.
+
+    Each dictionary has:
+      index       frame number in `frames`
+      obs_time    the frame's observation time
+      found       True if a dot was found
+      x, y        pixel position (counted from 0, y from the bottom row),
+                  or None if not found
+      png_x, png_y  the same spot in the PNG picture (see pixel_to_png_position)
+      ra_deg, dec_deg  sky position from the frame's WCS (None if no WCS)
+      snr         how strongly the dot stands out (0.0 if nothing positive)
+
+    Needs at least 3 frames of the same pixel size on the same pixel grid
+    (true for the mock data; real pointings may need re-aligning first).
+    A moving dot that stays within about one dot-width of the same pixels
+    for half of the frames is partly removed by the median, so very slow
+    movers are not found by this method.
+    Flags are not used yet (real flag bits are not known).
+    The original frames are not changed.
+    """
+    if not min_snr > 0:
+        raise ValueError("min_snr must be greater than zero.")
+    if len(frames) < 3:
+        raise ValueError("At least 3 frames are needed to find a moving dot.")
+    shape = frames[0]["image"].shape
+    if any(f["image"].shape != shape for f in frames):
+        raise ValueError("The frames have different sizes, so a trail cannot be worked out.")
+    height, width = shape
+
+    cube = np.stack([f["image"] for f in frames]).astype(float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)   # all-NaN pixels
+        fixed_sky = np.nanmedian(cube, axis=0)
+
+    trail = []
+    for i, frame in enumerate(frames):
+        entry = {"index": i, "obs_time": frame.get("obs_time"), "found": False,
+                 "x": None, "y": None, "png_x": None, "png_y": None,
+                 "ra_deg": None, "dec_deg": None, "snr": 0.0}
+        trail.append(entry)
+
+        diff = frame["image"] - fixed_sky
+        finite = np.isfinite(diff)
+        if not finite.any():
+            continue
+        diff = diff - np.median(diff[finite])          # removes a constant background offset
+        sigma = 1.4826 * float(np.median(np.abs(diff[finite])))   # noise size (robust)
+
+        # The brightest leftover spot (NaN pixels are never chosen)
+        peak_y, peak_x = np.unravel_index(np.argmax(np.where(finite, diff, -np.inf)), shape)
+        peak = float(diff[peak_y, peak_x])
+        if peak <= 0:
+            continue
+        snr = TRAIL_SNR_CAP if sigma <= 0 else min(peak / sigma, TRAIL_SNR_CAP)
+        entry["snr"] = float(snr)
+        if snr < min_snr:
+            continue
+
+        # Refine the position: weighted average of the bright pixels around the peak
+        h = TRAIL_CENTROID_HALF
+        y0, y1 = max(0, peak_y - h), min(height, peak_y + h + 1)
+        x0, x1 = max(0, peak_x - h), min(width, peak_x + h + 1)
+        window = np.where(finite[y0:y1, x0:x1], diff[y0:y1, x0:x1], 0.0)
+        weights = np.where(window > 2 * sigma, window, 0.0)
+        if weights.sum() > 0:
+            yy, xx = np.mgrid[y0:y1, x0:x1]
+            x = float((weights * xx).sum() / weights.sum())
+            y = float((weights * yy).sum() / weights.sum())
+        else:
+            x, y = float(peak_x), float(peak_y)
+
+        entry["found"] = True
+        entry["x"], entry["y"] = x, y
+        entry["png_x"], entry["png_y"] = pixel_to_png_position(x, y, height, width)
+        wcs = frame.get("wcs")
+        if wcs is not None:
+            ra, dec = wcs.pixel_to_world_values(x, y)
+            entry["ra_deg"], entry["dec_deg"] = float(ra) % 360.0, float(dec)
+    return trail

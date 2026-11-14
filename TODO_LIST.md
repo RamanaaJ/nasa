@@ -52,8 +52,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Support "subtract first frame" and "subtract previous frame" on mock data.
 19. [✔] Stacking and adding (#14, added) (Part B)
     Sum or average frames per detector to cut noise. Also offer a plain "add" option.
-20. [ ] Motion trail data (new) (Part B)
-        Work out the dot's pixel position in each frame so the page can draw a line through them.
+20. [✔] Motion trail data (new) (Part B)
+    Work out the dot's pixel position in each frame so the page can draw a line through them.
 21. [ ] Colour picture from 3 wavelengths (new) (Part B)
         Use three bands as red, green and blue to make one colour image. Test on mock data first.
 22. [ ] Expected-path function (new) (Part E)
