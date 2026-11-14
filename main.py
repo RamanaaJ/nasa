@@ -75,12 +75,13 @@ STRETCH_HELP = "Brightness stretch: " + ", ".join(processing.STRETCH_MODES) + f"
 MODE_HELP = "How frames are combined: " + ", ".join(params.READY_MODES) + f". Default {params.DEFAULT_MODE}."
 YEAR_HELP = "Optional year, for example 2026.0. Positions are moved to that year using proper motion. Empty = J2000."
 MATCH_HELP = "Background matching: on or off. Default off. On = every frame gets the same background level and brightness scale."
+REF_HELP = "Only for mode=difference: which frame is subtracted: " + ", ".join(processing.DIFFERENCE_REFERENCES) + f". Default {params.DEFAULT_REF}."
 
-def check_request(ra, dec, fov, stretch, mode, match=None):
+def check_request(ra, dec, fov, stretch, mode, match=None, ref=None):
     """Check the settings from the address. Bad input becomes a clear HTTP 400."""
     try:
-        return params.validate_request(ra, dec, fov, stretch, mode, match)
-    except ValueError as err:               # RequestError and CoordinateError are ValueErrors
+        return params.validate_request(ra, dec, fov, stretch, mode, match, ref)
+    except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
 
 
@@ -117,7 +118,8 @@ def describe_frame(index, frame, p):
 
     # The link repeats every setting, in plain numbers, so it works on its own
     query = urlencode({"ra": p.ra, "dec": p.dec, "fov": p.fov, "mode": p.mode,
-                       "stretch": p.stretch, "match": "on" if p.match else "off"})
+                       "stretch": p.stretch, "match": "on" if p.match else "off",
+                       "ref": p.ref})
     return {
         "index": index,
         "image_url": f"/api/frames/{index}/image?{query}",
@@ -140,9 +142,10 @@ def list_frames(
     stretch: str | None = Query(None, description=STRETCH_HELP),
     mode: str | None = Query(None, description=MODE_HELP),
     match: str | None = Query(None, description=MATCH_HELP),
+    ref: str | None = Query(None, description=REF_HELP),
 ):
     """The frame list: one entry per image, sorted by date."""
-    p = check_request(ra, dec, fov, stretch, mode, match)
+    p = check_request(ra, dec, fov, stretch, mode, match, ref)
     frames = frames_for(p)
     return {
         "source": cache.current_release(),
@@ -152,6 +155,7 @@ def list_frames(
         "stretch": p.stretch,
         "mode": p.mode,
         "match": p.match,
+        "ref": p.ref,
         "frame_count": len(frames),
         "frames": [describe_frame(i, f, p) for i, f in enumerate(frames)],
     }
@@ -165,19 +169,29 @@ def frame_image(
     stretch: str | None = Query(None, description=STRETCH_HELP),
     mode: str | None = Query(None, description=MODE_HELP),
     match: str | None = Query(None, description=MATCH_HELP),
+    ref: str | None = Query(None, description=REF_HELP),
 ):
     """One frame as a PNG picture. `index` is the number from the frame list."""
-    p = check_request(ra, dec, fov, stretch, mode, match)
+    p = check_request(ra, dec, fov, stretch, mode, match, ref)
     frames = frames_for(p)                      # instant when it is already cached
     if index < 0 or index >= len(frames):
         raise HTTPException(status_code=404,
                             detail=f"There is no frame {index}. This request has {len(frames)} frames.")
-    limits = None
     if p.match:
-        # Needs ALL frames (the common level and scale), then we draw just one.
         frames = processing.match_backgrounds(frames)
-        limits = processing.shared_limits(frames)
-    grey = processing.stretch_image(frames[index]["image"], mode=p.stretch, limits=limits)
+
+    if p.mode == "difference":
+        # Subtract the reference frame, then draw with one shared scale:
+        # grey = no change, white = brighter, black = dimmer.
+        try:
+            frames = processing.difference_frames(frames, p.ref)
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
+        limit = processing.shared_difference_limit(frames)
+        grey = processing.stretch_difference(frames[index]["image"], mode=p.stretch, limit=limit)
+    else:
+        limits = processing.shared_limits(frames) if p.match else None
+        grey = processing.stretch_image(frames[index]["image"], mode=p.stretch, limits=limits)
     return Response(content=processing.image_to_png_bytes(grey), media_type="image/png")
 
 

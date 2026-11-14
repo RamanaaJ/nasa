@@ -177,3 +177,92 @@ def frame_to_png(frame, ra_deg, dec_deg, fov_arcmin, stretch="sqrt"):
     patch = cutout_frame(frame, ra_deg, dec_deg, fov_arcmin)
     grey = stretch_image(patch["image"], mode=stretch)
     return image_to_png_bytes(grey)
+
+# ---------- Backend 18: difference imaging ----------
+
+# Ways to pick the frame that is subtracted
+DIFFERENCE_REFERENCES = ("first", "previous")
+
+
+def difference_frames(frames, reference="first"):
+    """Return NEW frames where each image has a reference image subtracted.
+
+    reference="first":    every frame minus frame 0
+    reference="previous": every frame minus the frame before it
+    Frame 0 has nothing earlier, so it is subtracted from itself (all zeros).
+    NaN stays NaN. Variances add (noise from both images). Flags are combined.
+    All frames must have the same pixel size (true for mock data).
+    The original frames are not changed.
+    """
+    if reference not in DIFFERENCE_REFERENCES:
+        raise ValueError(f"Unknown reference '{reference}'. Use one of {DIFFERENCE_REFERENCES}.")
+    if not frames:
+        return []
+    shape = frames[0]["image"].shape
+    if any(f["image"].shape != shape for f in frames):
+        raise ValueError("The frames have different sizes, so they cannot be subtracted.")
+
+    result = []
+    for i, frame in enumerate(frames):
+        ref = frames[0] if reference == "first" else frames[max(i - 1, 0)]
+        new_frame = dict(frame)               # copy, so the original is untouched
+        new_frame["image"] = frame["image"] - ref["image"]
+        if frame.get("variance") is not None and ref.get("variance") is not None:
+            new_frame["variance"] = frame["variance"] + ref["variance"]
+        if frame.get("flags") is not None and ref.get("flags") is not None:
+            new_frame["flags"] = np.bitwise_or(frame["flags"], ref["flags"])
+        result.append(new_frame)
+    return result
+
+
+def shared_difference_limit(frames, high_pct=99.5):
+    """One brightness limit for ALL difference frames (so they share a scale).
+
+    Returns a number (the 99.5th percentile of |difference|), or None if every
+    frame is empty or all zeros. All-zero frames (the reference frame) are
+    skipped so they do not pull the limit down.
+    """
+    parts = []
+    for f in frames:
+        values = np.abs(f["image"][np.isfinite(f["image"])])
+        if values.size > 0 and values.max() > 0:
+            parts.append(values)
+    if not parts:
+        return None
+    limit = float(np.percentile(np.concatenate(parts), high_pct))
+    return limit if limit > 0 else None
+
+
+def _curve(a, mode):
+    """Apply a stretch curve to numbers between 0 and 1 (same curves as stretch_image)."""
+    if mode == "sqrt":
+        return np.sqrt(a)
+    if mode == "log":
+        return np.log10(1.0 + 1000.0 * a) / np.log10(1001.0)
+    if mode == "asinh":
+        return np.arcsinh(ASINH_SCALE * a) / np.arcsinh(ASINH_SCALE)
+    return a                                   # linear
+
+
+def stretch_difference(image, mode="sqrt", limit=None):
+    """Turn a difference image into uint8 grey levels.
+
+    0 -> mid grey (about 128), +limit -> white, -limit -> black. The stretch
+    curve is applied to the size of the difference and the sign is kept, so
+    brighter and dimmer are treated the same way. NaN pixels are black.
+    limit None: no usable scale, so the whole picture is mid grey.
+    """
+    if mode not in STRETCH_MODES:
+        raise ValueError(f"Unknown stretch '{mode}'. Use one of {STRETCH_MODES}.")
+    if limit is None or not limit > 0:
+        grey = np.full(image.shape, 128, dtype=np.uint8)
+        grey[~np.isfinite(image)] = 0
+        return grey
+
+    finite = np.isfinite(image)
+    safe = np.where(finite, image, 0.0)
+    scaled = np.clip(safe / limit, -1.0, 1.0)
+    signed = np.sign(scaled) * _curve(np.abs(scaled), mode)      # -1 .. +1
+    grey = np.round((signed + 1.0) / 2.0 * 255).astype(np.uint8)
+    grey[~finite] = 0
+    return grey

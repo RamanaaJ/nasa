@@ -154,7 +154,7 @@ check("mode missing -> normal, and it is in the links",
 check("mode=normal is accepted",
       requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC, "mode": "normal"}).status_code == 200)
 
-for label, query in [("mode=difference (not built yet)", {"ra": RA, "dec": DEC, "mode": "difference"}),
+for label, query in [("mode=stack (not built yet)", {"ra": RA, "dec": DEC, "mode": "stack"}),
                      ("mode=banana", {"ra": RA, "dec": DEC, "mode": "banana"}),
                      ("fov=big", {"ra": RA, "dec": DEC, "fov": "big"}),
                      ("ra=abc", {"ra": "abc", "dec": DEC}),

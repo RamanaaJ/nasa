@@ -18,7 +18,8 @@ import processing
 # Modes are the ways the frames can be combined. Only "normal" is built so far.
 # "difference" is Backend 18 and "stack" is Backend 19 in TODO_LIST.md.
 ALL_MODES = ("normal", "difference", "stack")
-READY_MODES = ("normal",)          # add a name here when its feature is built
+READY_MODES = ("normal", "difference")     # add a name here when its feature is built
+DEFAULT_REF = "first"                      # which frame is subtracted in difference mode          # add a name here when its feature is built
 DEFAULT_MODE = "normal"
 DEFAULT_STRETCH = "sqrt"
 DEFAULT_MATCH = False              # background matching is off unless asked for
@@ -38,6 +39,7 @@ class Params:
     stretch: str       # one of processing.STRETCH_MODES
     mode: str          # one of READY_MODES
     match: bool = False    # True = background matching is on
+    ref: str = DEFAULT_REF     # "first" or "previous" (only used by mode=difference)
 
 
 def _blank(value):
@@ -97,7 +99,17 @@ def parse_match(value):
     raise RequestError(f"The match setting '{str(value).strip()}' is not understood. "
                        f"Use match=on or match=off.")
 
-def validate_request(ra, dec, fov=None, stretch=None, mode=None, match=None):
+def parse_ref(value):
+    """Which frame is subtracted in difference mode. Empty means 'first'."""
+    if _blank(value):
+        return DEFAULT_REF
+    ref = str(value).strip().lower()
+    if ref not in processing.DIFFERENCE_REFERENCES:
+        raise RequestError(f"Unknown ref '{str(value).strip()}'. "
+                           f"Choose one of: {', '.join(processing.DIFFERENCE_REFERENCES)}.")
+    return ref
+
+def validate_request(ra, dec, fov=None, stretch=None, mode=None, match=None, ref=None):
     """Check all settings and return a Params. Raises RequestError (or
     coords.CoordinateError for a bad RA/Dec). Both are ValueErrors."""
     if _blank(ra) or _blank(dec):
@@ -109,4 +121,5 @@ def validate_request(ra, dec, fov=None, stretch=None, mode=None, match=None):
         stretch=parse_stretch(stretch),
         mode=parse_mode(mode),
         match=parse_match(match),
+        ref=parse_ref(ref),
     )

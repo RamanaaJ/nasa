@@ -69,7 +69,7 @@ check("fov is inf", fails(ra="10", dec="0", fov="inf"))
 print("\n--- Test 4: bad stretch and mode ---")
 check("unknown stretch", fails(ra="10", dec="0", stretch="banana"))
 check("unknown mode", fails(ra="10", dec="0", mode="banana"))
-check("'difference' is known but not built yet", fails(ra="10", dec="0", mode="difference"))
+check("'difference' is now accepted", params.validate_request("10", "0", mode="difference").mode == "difference")
 check("'stack' is known but not built yet", fails(ra="10", dec="0", mode="stack"))
 
 print("\n--- Test 5: error types ---")

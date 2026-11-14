@@ -26,6 +26,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 15: FOV handling. params.py rounds fov to 3 decimals (same as the cache key); main.py has GET /api/limits (min, max, default FOV in arcmin, from config.py); config.py comment corrected (limits are enforced). test_fov.py checks cutout sizes at 1, 3, 6, 15 and 30 arcmin, the limits and rounding (offline part + server part).
 - Todo Backend 16: processing.py has an "asinh" stretch (STRETCH_MODES now linear, sqrt, log, asinh; strength ASINH_SCALE = 10). params.py and the /docs help pick it up automatically, so stretch=asinh works in the URL. test_stretch.py checks it (offline part + server part).
 - Todo Backend 17: background-level matching. processing.py has estimate_background (median), match_backgrounds (shifts every frame to a common level, returns new frames), shared_limits (one black/white point pair for all frames) and stretch_image(limits=...). params.py has parse_match (match=on/off, default off); main.py passes match to /api/frames and /api/frames/{index}/image and puts match=on/off in the image links. test_background.py checks it (offline parts + server part).
+- Todo Backend 18: difference imaging. processing.py has difference_frames (subtract the first or the previous frame, returns new frames), shared_difference_limit and stretch_difference (grey = no change, white = brighter, black = dimmer, one shared scale). params.py has parse_ref (ref=first|previous, default first) and "difference" is now in READY_MODES. main.py passes ref to /api/frames and /api/frames/{index}/image and puts ref in the image links. Old tests that used mode=difference as "not built yet" now use mode=stack. test_difference.py checks it (offline parts + server part).
 
 ## In progress
 
@@ -33,7 +34,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 18: Difference imaging (waiting for go-ahead)
+- Todo Backend 19: Stacking and adding (waiting for go-ahead) and In progress to (nothing)
 
 ## Decisions made
 
@@ -83,6 +84,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - Background matching (match=on/off, default off) is applied AFTER the cache, so cached cutouts and cache keys are unchanged. Background level = median of the finite pixels. Common level = median of all frames' levels. Only an additive offset is removed.
 - When match is on, the image endpoint also uses ONE shared brightness scale (shared_limits over all frames). Without it matching would show nothing, because stretch_image already subtracts each frame's own low percentile.
 - match accepts on/off, 1/0, true/false, yes/no (any capitals); anything else gives HTTP 400. The image links always carry match=on or match=off.
+- Difference mode: mode=difference plus ref=first|previous (default first). Frame 0 is always blank (nothing to subtract). If match=on, backgrounds are matched first, then frames are subtracted.
+- Difference pictures use a symmetric scale: 0 is mid grey, +limit white, -limit black. The limit is the 99.5th percentile of |difference| over all frames (all-zero frames skipped). The chosen stretch curve is applied to |difference| and the sign is kept. NaN pixels are black.
+- Difference is computed after the cache, so cache keys are unchanged. Variances add and flags are OR-ed (not used by the picture yet).
+- When a new mode is built, remember to update the old "not built yet" tests (stack is next).
 
 ## Known problems
 
@@ -115,6 +120,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - The mock frames already have almost the same background (noise around 10), so matching changes little on mock data; test_background.py uses frames with big offsets to prove it works.
 - estimate_background ignores flags (real flag bits are not known yet) and the median still includes stars in very crowded fields.
 - With match=on, each image request recomputes the levels from all frames (cheap on the mock data; recheck speed on real data, after-data #27).
+- Difference imaging subtracts pixel by pixel and assumes every frame has the same pixel grid. The mock frames share one WCS, so this works. Real SPHEREx pointings will differ, so real frames probably need re-aligning (reprojecting) onto one grid first; frames of different sizes give HTTP 400. Revisit in after-data #11 (Edge cases).
+- In difference mode, frame 0 is a flat grey picture by design.
+- Real bands/detectors differ in brightness scale, so subtracting frames from different bands may show large residuals on bright stars. Retune in after-data #15.
 
 ## How to run and test
 
@@ -134,3 +142,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_fov.py (cutout sizes and limits; server part if uvicorn is running)
 - python test_stretch.py (stretch modes; server part if uvicorn is running)
 - python test_background.py (background matching; server part if uvicorn is running)
+- python test_difference.py (difference imaging; server part if uvicorn is running)
