@@ -22,6 +22,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 11: params.py (validate_request) checks ra, dec, fov, mode, stretch from the URL; main.py uses it; bad values return HTTP 400 with a friendly message; ra/dec accept degrees or sexagesimal via coords.py; test_params.py and test_frames_api.py (Test 6) check it.
 - Todo Backend 12: names.py (resolve_name, resolve_local, NameSearchError, NameResult) turns a name into RA/Dec. Checks the 5 local targets first (offline, spelling-tolerant), then astropy's SkyCoord.from_name; friendly message if the online lookup fails. test_names.py checks it with a fake online service. Not connected to main.py/URL yet.
 - Todo Backend 13: targets.py has target_list(year=None); main.py has GET /api/targets?year=.. returning the 5 preset targets (id, label, simbad_name, ra/dec at the chosen epoch, J2000 ra/dec, proper motion, note). Optional year moves positions with position_at_epoch(). Bad year gives HTTP 400. test_targets.py checks it (offline part + server part).
+- Todo Backend 14: errors.py holds the message wording; main.py has handlers so every error is JSON {"detail": "friendly sentence"}: missing settings (422), stock 404/405 wording, unexpected crashes (500, details only in the terminal). frames_for() now has a TimeoutError -> 504 branch and a no-images 404 that names the position. test_errors.py checks it (offline part + server part). All checks passed live.
 
 ## In progress
 
@@ -29,7 +30,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 14: Friendly errors (waiting for go-ahead)
+- Todo Backend 15: FOV handling (waiting for go-ahead)
 
 ## Decisions made
 
@@ -63,13 +64,16 @@ M1: Mock data generator (preparing: verifying targets first)
 - coords.py: plain numbers are degrees; sexagesimal RA without a unit letter is hours; Dec is always degrees. Pure Python, no astropy.
 - CoordinateError subclasses ValueError. Name search (Backend 12) is a separate step.
 - URL settings: ra, dec (text, parsed by coords.py), fov (arcmin, limits from config.py, empty = default), stretch (processing.STRETCH_MODES), mode (normal, difference, stack; only normal is built).
-- Bad URL values give HTTP 400 with {"detail": "..."}; a missing ra/dec still gives FastAPI's 422 until Backend 14.
+- Bad URL values give HTTP 400 with {"detail": "..."}; a missing ra/dec gives 422 with a friendly {"detail": "..."} (Backend 14).
 - When a new mode is built (Backend 18/19), add its name to READY_MODES in params.py. New stretches (asinh) appear automatically.
 - names.py: names are compared ignoring capitals, spaces, hyphens and apostrophes. Local targets are checked first and never use the internet. Local results are J2000 unless a year is given (then position_at_epoch is used). Online results are whatever the service returns (no proper-motion correction).
 - NameSearchError subclasses ValueError. Name search is not wired into the URL yet; ra/dec are still required by /api/frames. Wiring it in (e.g. a name parameter) needs a go-ahead.
 - The extra spellings for the local targets (e.g. "GJ 699", "eps Ind Ba") come from the names tried in verify_targets\*.py and SIMBAD names in targets.py.
 - /api/targets is the single source for preset buttons (data comes from targets.py). Without year, ra_deg/dec_deg are J2000; with year=2026 they are moved by proper motion. J2000 values are always included as ra_j2000_deg / dec_j2000_deg. The page should use year=2026 positions with the frames endpoint, because SPHEREx observes in 2025-2026.
 - year is accepted from 1900 to 2100; anything else gives HTTP 400.
+- Error format: every API error is {"detail": "<one friendly sentence>"}, so the page can show detail directly. Status codes: 400 bad value, 404 no images / no such frame / no such address, 405 wrong request type, 422 missing or wrongly typed setting (kept as 422 so test_frames_api.py is unchanged), 500 unexpected crash, 501 real data not connected, 503 mock files missing, 504 data source too slow.
+- Unexpected crashes show a generic message to the visitor; the real error and traceback go to the uvicorn terminal.
+- Real data code (data_irsa.py) must raise TimeoutError for a slow download so frames_for() can turn it into HTTP 504.
 
 ## Known problems
 
@@ -93,6 +97,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - With mock data only the WISE 0855 preset (at its year-2026 position) finds frames; the other 4 presets give 404 ("No images cover this sky position") because the mock sky covers only that patch. This is expected until real data (Backend 25).
 - Positions at a given year use straight-line proper motion only (no parallax); fine for centring a cutout.
 - The name search (names.py, Backend 12) is still not connected to the URL.
+- The 504 (slow data) branch is untested against real data; nothing raises TimeoutError yet. Revisit in after-data #10 (Robust downloading).
+- The 500 handler was not triggered in the live test (optional step 5 in the Backend 14 instructions); it is only checked by reading the code.
+- Environment: Python 3.15 could not install PyYAML on Windows (no C++ compiler). The project uses Python 3.13; the venv was rebuilt with `py -3.13 -m venv venv`.
 
 ## How to run and test
 
@@ -107,3 +114,5 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_params.py (checks URL settings)
 - python test_names.py (checks name search, offline) and python names.py "Barnard's Star" (try one by hand)
 - python test_targets.py (offline part always; server part if uvicorn is running)
+  python test_errors.py (offline part always; server part if uvicorn is running)
+- First-time setup in a fresh clone: py -3.13 -m venv venv, .\venv\Scripts\Activate.ps1, pip install -r requirements.txt, python data_mock.py, python cache.py clear

@@ -17,22 +17,52 @@
 
 from pathlib import Path
 from urllib.parse import urlencode
-import math                      
+import logging                                            # NEW
+import math
 
 import numpy as np
 from astropy.wcs.utils import proj_plane_pixel_scales
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.exceptions import RequestValidationError     # NEW
+from fastapi.responses import JSONResponse, Response      # NEW: JSONResponse added
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException   # NEW
 
 import cache
 import config
 import data_mock
+import errors                                             # NEW
 import params
 import processing
-import targets  
+import targets
 
 app = FastAPI(title="SPHEREx Sky Viewer")
+
+logger = logging.getLogger("uvicorn.error")   # prints into the terminal where uvicorn runs
+
+
+# Backend 14: every error leaves the server as {"detail": "a friendly sentence"}.
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(request, exc):
+    """A setting is missing or has the wrong type (for example a missing ra)."""
+    return JSONResponse(status_code=422,
+                        content={"detail": errors.validation_message(exc.errors())})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def handle_http_error(request, exc):
+    """Our own HTTPException messages pass through; stock wording is replaced."""
+    detail = errors.friendly_http_detail(exc.status_code, exc.detail)
+    return JSONResponse(status_code=exc.status_code, content={"detail": detail},
+                        headers=getattr(exc, "headers", None))
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(request, exc):
+    """Anything we did not expect. Details go to the terminal, not to the visitor."""
+    logger.error("Unexpected error on %s", request.url.path, exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": errors.SERVER_ERROR_MESSAGE})
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -63,10 +93,13 @@ def frames_for(p):
         frames = cache.get_or_load(p.ra, p.dec, p.fov, data_mock.get_frames)
     except FileNotFoundError as err:        # mock files were never created
         raise HTTPException(status_code=503, detail=str(err))
+    except TimeoutError:                    # NEW: a slow data source (used by real data later)
+        raise HTTPException(status_code=504, detail=errors.TIMEOUT_MESSAGE)
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     if not frames:
-        raise HTTPException(status_code=404, detail="No images cover this sky position.")
+        raise HTTPException(status_code=404,
+                            detail=errors.no_images_message(p.ra, p.dec, config.USE_MOCK))   # NEW
     return frames
 
 
