@@ -29,6 +29,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 18: difference imaging. processing.py has difference_frames (subtract the first or the previous frame, returns new frames), shared_difference_limit and stretch_difference (grey = no change, white = brighter, black = dimmer, one shared scale). params.py has parse_ref (ref=first|previous, default first) and "difference" is now in READY_MODES. main.py passes ref to /api/frames and /api/frames/{index}/image and puts ref in the image links. Old tests that used mode=difference as "not built yet" now use mode=stack. test_difference.py checks it (offline parts + server part).
 - Todo Backend 19: stacking. processing.py has stack_frames (mean or sum, grouped by detector or all frames together; returns new frames sorted by mean time with n_stacked, mean wavelength, combined variance and OR-ed flags). params.py has parse_combine (combine=mean|sum, default mean) and parse_group (group=detector|all, default detector), and "stack" is now in READY_MODES. main.py passes combine and group to /api/frames and /api/frames/{index}/image, puts them in the image links, adds n_stacked to each frame, and in stack mode the frame list is the stacked list (6 frames on the mock data with group=detector). Old tests that used mode=stack as "not built yet" were changed (test_params.py, test_frames_api.py, test_difference.py). test_stack.py checks it (offline parts + server part).
 - Todo Backend 20: motion trail data. processing.py has find_moving_dot (fixed sky = median of all frames, subtract, brightest leftover spot + centroid; returns one dictionary per frame with found, x, y, png_x, png_y, ra_deg, dec_deg, snr, obs_time) and pixel_to_png_position (data pixel -> position in the PNG, undoing the north-up flip and the whole-number enlargement). image_to_png_bytes now shares \_png_factor with it. Not connected to main.py yet. test_trail.py checks it (offline parts + mock-data part).
+- Todo Backend 21: colour picture. processing.py has pick_colour_frames (longest wavelength = red, middle = green, shortest = blue), colour_picture (stretches 3 frames and stacks them into a (height, width, 3) uint8 array; channels=(r, g, b) to choose frames by hand; shared_scale=False/True) and rgb_to_png_bytes (colour PNG, north up, same enlargement as the grey PNG). Not connected to main.py yet. test_colour.py checks it (offline parts + mock-data part).
 
 ## In progress
 
@@ -36,7 +37,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 21: Colour picture from 3 wavelengths (waiting for go-ahead)
+- Todo Backend 22: Expected-path function (waiting for go-ahead)
 
 ## Decisions made
 
@@ -97,6 +98,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - Trail positions: x, y are pixel numbers counted from 0, with y counted from the bottom row (FITS way). png_x, png_y are in the PNG (top-left origin, north up, after enlargement), ready for the page to draw on.
 - find_moving_dot needs at least 3 frames of the same size (HTTP 400 once wired in). A spot must stand out by TRAIL_MIN_SNR = 5 times the noise (guess, retune on real data); noise = robust sigma (MAD) of the frame minus the fixed sky. Each frame's own median is removed first, so different background levels do not matter.
 - Centroid uses the pixels within TRAIL_CENTROID_HALF = 3 of the brightest one that are above 2 sigma. snr is capped at 9999 so it is JSON-friendly.
+- Colour picture: automatic choice by wavelength, longest = red, middle = green, shortest = blue; fewer than 3 frames, or all frames with the same wavelength, gives a ValueError (HTTP 400 once wired in). channels=(r, g, b) overrides the choice. Each channel is stretched on its own by default (shared_scale=False); shared_scale=True uses one black/white point for all three so colours show real brightness ratios.
+- A colour picture mixes frames from different dates. Fixed sources look white or grey, moving sources show as separate red, green and blue dots. That is intended; it is not a real colour of the object.
+- rgb_to_png_bytes uses the same flip and enlargement as image_to_png_bytes, so pixel_to_png_position() also works for colour pictures.
 
 ## Known problems
 
@@ -145,6 +149,11 @@ M1: Mock data generator (preparing: verifying targets first)
 - Flags are not used (real bits unknown). A cosmic ray is only rejected because it is fainter than the dot. Bright fixed-star variability or a brighter artefact can be picked instead of the mover.
 - On pure noise the strongest spot reaches about 4 to 5 sigma, close to the 5-sigma limit, so real noisy data may need a higher limit or flags.
 - Mock-data check (Part 5 of test_trail.py) has not been run by me; run it and note the result.
+- The colour picture is not connected to main.py (no endpoint, no URL setting yet). It needs a go-ahead.
+- The 3 frames must have the same pixel size and the same pixel grid (same assumption as difference, stack and trail). Real pointings need re-aligning first (after-data #11).
+- The mock frames have the same brightness at every wavelength, so mock fixed stars look grey or white. Real stars will have real colours, and different bands and detectors differ in brightness scale. Real band choice and scaling must be retuned (after-data #23).
+- Flags are not used (real bits unknown).
+- Mock-data check (Part 4 of test_colour.py) has not been run by me; run it and note the result.
 
 ## How to run and test
 
@@ -167,3 +176,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_difference.py (difference imaging; server part if uvicorn is running)
 - python test_stack.py (stacking; server part if uvicorn is running)
 - python test_trail.py (motion trail; mock-data part needs data/mock/ files)
+- python test_colour.py (colour picture; mock-data part needs data/mock/ files and saves cache/test_png/colour_mock.png)

@@ -10,6 +10,8 @@
 #   7. stack_frames()    (Backend 19) add or average frames to cut noise
 #   8. find_moving_dot() (Backend 20) work out the moving dot's position in
 #      each frame, so the page can draw a motion trail through them
+#   9. colour_picture() / rgb_to_png_bytes()   (Backend 21) three wavelengths
+#      become the red, green and blue channels of one colour picture
 # This file never downloads data and never reads files.
 # A "frame" is a dictionary described in FRAME_FORMAT.md.
 
@@ -486,3 +488,80 @@ def find_moving_dot(frames, min_snr=TRAIL_MIN_SNR):
             ra, dec = wcs.pixel_to_world_values(x, y)
             entry["ra_deg"], entry["dec_deg"] = float(ra) % 360.0, float(dec)
     return trail
+
+
+# ---------- Backend 21: colour picture from 3 wavelengths ----------
+
+def pick_colour_frames(frames):
+    """Choose which 3 frames become red, green and blue.
+
+    Longer wavelength = redder, like in a normal rainbow. So the frame with
+    the LONGEST wavelength is red, the one in the middle is green and the
+    one with the SHORTEST wavelength is blue.
+    Returns (red_index, green_index, blue_index), numbers in `frames`.
+    """
+    if len(frames) < 3:
+        raise ValueError("At least 3 frames are needed for a colour picture.")
+    order = sorted(range(len(frames)), key=lambda i: frames[i]["wavelength_um"])
+    if frames[order[0]]["wavelength_um"] == frames[order[-1]]["wavelength_um"]:
+        raise ValueError("All frames have the same wavelength, so there are no colours to show.")
+    return order[-1], order[len(order) // 2], order[0]
+
+
+def colour_picture(frames, channels=None, mode="sqrt", shared_scale=False):
+    """Make one colour picture: a uint8 array of shape (height, width, 3).
+
+    channels:     (red_index, green_index, blue_index) = which frames to use.
+                  None = choose automatically with pick_colour_frames().
+    mode:         stretch curve, one of STRETCH_MODES.
+    shared_scale: False = each colour is stretched on its own (every channel
+                  uses its full brightness range; good for looking at shapes).
+                  True = the 3 frames share one black/white point, so the
+                  colour of a source shows its real brightness ratio.
+    A source that does not move has the same place in all three frames and
+    looks white or grey. A MOVING source is in a different place in each
+    frame, so it shows up as separate red, green and blue dots.
+    The original frames are not changed. All 3 frames must have the same
+    pixel size (and, as for stacking, the same pixel grid).
+    """
+    if mode not in STRETCH_MODES:
+        raise ValueError(f"Unknown stretch '{mode}'. Use one of {STRETCH_MODES}.")
+    if channels is None:
+        channels = pick_colour_frames(frames)
+    else:
+        channels = tuple(channels)
+        if len(channels) != 3 or any(
+                isinstance(i, bool) or not isinstance(i, (int, np.integer)) or not 0 <= i < len(frames)
+                for i in channels):
+            raise ValueError(f"channels must be three frame numbers from 0 to {len(frames) - 1}.")
+
+    chosen = [frames[i] for i in channels]
+    shape = chosen[0]["image"].shape
+    if any(f["image"].shape != shape for f in chosen):
+        raise ValueError("The frames have different sizes, so they cannot make one colour picture.")
+
+    limits = shared_limits(chosen) if shared_scale else None
+    planes = [stretch_image(f["image"], mode=mode, limits=limits) for f in chosen]
+    return np.dstack(planes)                  # red, green, blue
+
+
+def rgb_to_png_bytes(rgb, target_size=400):
+    """Turn a (height, width, 3) uint8 colour array into PNG bytes.
+
+    Same rules as image_to_png_bytes: flipped so north is up, enlarged by a
+    whole-number factor with 'nearest' scaling. So pixel_to_png_position()
+    works for colour pictures too.
+    """
+    if rgb.ndim != 3 or rgb.shape[2] != 3:
+        raise ValueError("A colour array must have the shape (height, width, 3).")
+    height, width, _ = rgb.shape
+    picture = Image.fromarray(np.ascontiguousarray(np.flipud(rgb)))
+
+    factor = _png_factor(height, width, target_size)
+    if factor > 1:
+        picture = picture.resize((width * factor, height * factor),
+                                 Image.Resampling.NEAREST)
+
+    buffer = io.BytesIO()
+    picture.save(buffer, format="PNG")
+    return buffer.getvalue()
