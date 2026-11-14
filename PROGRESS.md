@@ -11,6 +11,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 1: workflow files created (PROGRESS.md, FRAME_FORMAT.md, docs/DATA_NOTES.md, rules file, .gitignore) and committed to Git.
 - Todo Backend 2: targets verified against SIMBAD (Harvard mirror) and targets.py written (J2000 positions + proper motion + position_at_epoch)
 - Todo Backend 3: data_mock.py writes 12 mock FITS files to data/mock/ (moving dot, WCS, DATE-OBS, DETECTOR, WAVE_UM in headers); check_mock.py reads them back
+- Todo Backend 4: data_mock.py now also writes FLAGS (bits 1=bad, 2=cosmic ray, 4=contaminated) and VARIANCE extensions; check_mock.py checks them
 
 ## In progress
 
@@ -18,7 +19,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 4: Mock FLAGS and VARIANCE (waiting for go-ahead)
+- Todo Backend 5: Cutout, stretch, PNG (waiting for go-ahead)
 
 ## Decisions made
 
@@ -29,6 +30,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - Mock dot moves at 10x WISE 0855's real proper motion so it is visible
 - Mock header keywords (DETECTOR, WAVE_UM, DOTX, DOTY) are our own names;
   real SPHEREx keywords must be checked later
+- Mock files have 3 parts: PRIMARY (image), FLAGS, VARIANCE
+- Mock flag bit meanings (1/2/4) are invented; real ones come from the SPHEREx documentation later; flags.py must keep the table swappable
+- Mock bad pixels are the same in every frame; cosmic rays are random
+- Defects avoid the dot's rows (y 40-59) so tests stay clear
 
 ## Known problems
 
@@ -37,8 +42,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - WISE 0855 coordinates in the brief (08h55m10.831s) are from about 2010, not J2000
 - Mock assumptions not yet verified: pixel scale 6.2 arcsec, wavelength range 0.75-5.0 um
 - All 12 mock frames share one WCS; real SPHEREx pointings will differ
+- Mock extension names (FLAGS, VARIANCE) and the variance recipe are guesses; real file layout must be inspected (Backend after-data #1)
+- Mock FLAGS/VARIANCE extensions have no WCS of their own
 
 ## How to run and test
 
-- python data_mock.py (creates data/mock/mock_00..11.fits)
-- python check_mock.py (prints a summary of the files)
+- python data_mock.py (creates data/mock/mock_00..11.fits with image, FLAGS, VARIANCE)
+- python check_mock.py (prints a summary, including flag counts)

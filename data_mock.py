@@ -1,5 +1,6 @@
 # data_mock.py
 # Makes 12 fake SPHEREx-like FITS images with one moving dot.
+# Each file has 3 parts: the image, a FLAGS map and a VARIANCE map.
 # Run it with:  python data_mock.py
 # It only WRITES files into data/mock/. It never makes PNGs or pictures.
 
@@ -25,6 +26,16 @@ WAVE_MIN_UM, WAVE_MAX_UM = 0.75, 5.0   # ASSUMPTION: mock wavelength range (micr
 DOT_AMPLITUDE = 200.0            # dot is the brightest thing in the image
 DOT_SIGMA_PIX = 1.2              # dot size
 SEED = 42                        # makes the noise the same every run
+
+# NEW: flag settings. These bit meanings are INVENTED for the mock.
+# Real SPHEREx bit meanings must be loaded from its documentation later.
+FLAG_BAD = 1                     # bit value 1: dead pixel
+FLAG_COSMIC = 2                  # bit value 2: cosmic ray hit
+FLAG_CONTAM = 4                  # bit value 4: contaminated (near a fixed star)
+N_BAD_PIXELS = 15                # dead pixels (same places in every frame)
+N_COSMIC_RAYS = 5                # random spikes (new places in every frame)
+COSMIC_AMPLITUDE = 60.0          # how much a cosmic ray adds to its pixel
+CONTAM_RADIUS_PIX = 4            # pixels this close to a fixed star get flagged
 
 # Fixed stars as (x, y, brightness) in pixel coordinates. They never move.
 STATIC_STARS = [
@@ -68,6 +79,51 @@ def add_blob(image, x, y, amplitude, sigma):
     image += amplitude * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * sigma ** 2))
 
 
+# NEW
+def random_pixels_off_dot_track(n, rng):
+    """Pick n random pixel positions (x, y) that stay away from the dot's path.
+
+    The dot travels along rows y = 49-50, so we only use rows 0-39 and 60-99.
+    That way a defect can never hide the dot in our tests.
+    """
+    x = rng.integers(0, IMAGE_SIZE, n)
+    y = rng.integers(0, 40, n)
+    y = np.where(rng.random(n) < 0.5, y, y + 60)      # half of them move to rows 60-99
+    return x, y
+
+
+# NEW
+def make_flags_and_variance(image, bad_xy, rng):
+    """Create the FLAGS and VARIANCE maps, and put defects into the image.
+
+    Changes `image` in place (cosmic rays add a spike, dead pixels become 0).
+    Returns (flags, variance).
+    """
+    # Variance first, from the clean signal: brighter pixel = noisier pixel.
+    # This recipe is made up for the mock, it is not real physics.
+    variance = 1.0 + 0.05 * np.clip(image, 0, None)
+
+    flags = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=np.int32)
+
+    # Contaminated: every pixel within CONTAM_RADIUS_PIX of a fixed star
+    yy, xx = np.mgrid[0:IMAGE_SIZE, 0:IMAGE_SIZE]
+    for (sx, sy, _amp) in STATIC_STARS:
+        near = (xx - sx) ** 2 + (yy - sy) ** 2 <= CONTAM_RADIUS_PIX ** 2
+        flags[near] |= FLAG_CONTAM        # |= adds the bit without removing others
+
+    # Cosmic rays: random places, different in every frame
+    cx, cy = random_pixels_off_dot_track(N_COSMIC_RAYS, rng)
+    image[cy, cx] += COSMIC_AMPLITUDE
+    flags[cy, cx] |= FLAG_COSMIC
+
+    # Dead pixels: same places in every frame, they read zero
+    bx, by = bad_xy
+    image[by, bx] = 0.0
+    flags[by, bx] |= FLAG_BAD
+
+    return flags, variance
+
+
 def generate_mock_frames():
     """Write N_FRAMES FITS files into OUT_DIR."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -76,6 +132,9 @@ def generate_mock_frames():
     mid_days = DAYS_BETWEEN * (N_FRAMES - 1) / 2
     ra_c, dec_c = dot_sky_position(mid_days)
     wcs = make_wcs(ra_c, dec_c)
+
+    # NEW: dead pixels are chosen once, so they are in the same place every frame
+    bad_xy = random_pixels_off_dot_track(N_BAD_PIXELS, np.random.default_rng(SEED + 1000))
 
     for i in range(N_FRAMES):
         days = DAYS_BETWEEN * i
@@ -96,7 +155,10 @@ def generate_mock_frames():
         dot_x, dot_y = wcs.wcs_world2pix(ra, dec, 0)           # 0 = pixels counted from 0
         add_blob(image, float(dot_x), float(dot_y), DOT_AMPLITUDE, DOT_SIGMA_PIX)
 
-        # Build the FITS file: pixel data + header
+        # NEW: flags and variance (this also adds cosmic rays and dead pixels)
+        flags, variance = make_flags_and_variance(image, bad_xy, rng)
+
+        # Build the FITS file: image + header
         hdu = fits.PrimaryHDU(data=image.astype(np.float32), header=wcs.to_header())
         hdu.header["DATE-OBS"] = (obs_time.isoformat(), "Observation date/time (UTC)")
         hdu.header["DETECTOR"] = (detector, "Detector number 1-6 (mock)")
@@ -105,8 +167,15 @@ def generate_mock_frames():
         hdu.header["DOTX"] = (float(dot_x), "TRUE dot x pixel (for testing)")
         hdu.header["DOTY"] = (float(dot_y), "TRUE dot y pixel (for testing)")
 
+        # NEW: two extra parts of the file, named so we can find them later
+        flags_hdu = fits.ImageHDU(data=flags, name="FLAGS")
+        flags_hdu.header["FLAG_1"] = "bad pixel (mock)"
+        flags_hdu.header["FLAG_2"] = "cosmic ray (mock)"
+        flags_hdu.header["FLAG_4"] = "contaminated (mock)"
+        var_hdu = fits.ImageHDU(data=variance.astype(np.float32), name="VARIANCE")
+
         path = OUT_DIR / f"mock_{i:02d}.fits"
-        hdu.writeto(path, overwrite=True)
+        fits.HDUList([hdu, flags_hdu, var_hdu]).writeto(path, overwrite=True)
         print("wrote", path.name)
 
 
