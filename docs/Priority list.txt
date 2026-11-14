@@ -1,0 +1,41 @@
+Priority 1: Must-have (the minimum winning demo)
+#	Feature	How to know it’s done
+1	Mock data generator (moving dot, WCS, dates)	FITS files exist in data/mock/
+2	Cutout + display of one image	One PNG shows in the browser
+3	RA/Dec input form	Typing coordinates changes the image
+4	Animation: play/pause + frame slider	A dot visibly moves across frames
+5	Switch to real SPHEREx data	Works on WISE 0855
+6	All 5 test targets work	Preset buttons for each target
+Priority 2: High payoff, low effort
+#	Feature	Why
+7	Coordinates in the URL	Makes it shareable and embeddable
+8	Target preset buttons	Great for demos and judges
+9	Field-of-view control	Easy once cutout size is a parameter
+10	Frame info display (date, band)	Helps users understand what they see
+11	Loading spinner and error messages	Makes it feel public-ready
+12	Brightness stretch control	Faint objects need it
+Priority 3: The “wow” features that score points
+#	Feature	Why
+13	Difference imaging (subtract first frame or previous frame)	Moving objects pop out
+14	Stack by detector (add images to reduce noise)	Specifically suggested in the challenge
+15	Spectrum plot on click	“Extra kudos” in the challenge
+16	Metadata and contamination flags	Also suggested in the challenge
+Priority 4: Stretch goals
+#	Feature
+17	Gaia/WISE overlays (maybe via Aladin Lite)
+18	Circle/marker tool to highlight a moving object
+19	Download animation as GIF
+20	Pretty design, mobile layout, a tutorial for beginners
+Build order (milestones)
+
+Each milestone should be testable on its own and ends with a git commit:
+
+M1: Mock data generator
+M2: Processing: cutout + stretch + PNG
+M3: API endpoint returning mock frames
+M4: Web page with animation
+M5: URL parameters + FOV + presets (all on mock data)
+M6: Real data layer (once data access is clear)
+M7: Difference imaging and stacking
+M8: Spectra, flags, overlays
+M9: Polish, README, demo recording

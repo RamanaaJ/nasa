@@ -1,0 +1,6 @@
+Target	            Approx. RA / Dec (J2000)	    What it tests
+WISE 0855	        08h55m10.83s, -07°14'42.5"	    Very fast mover, extremely faint. Your hardest and best test.
+Barnard’s Star	    17h57m48s, +04°41'36"	        Bright, fast proper motion (about 10 arcsec/year).
+Epsilon Indi B	    22h03m22s, -56°47'	            Brown dwarf pair near a bright star. Tests crowding and blending.
+RW Aurigae	        05h07m50s, +30°24'	            Variable star. Tests brightness changes, not motion.
+R Draconis	        16h32m, +66°45'	                Variable star (Mira type). Brightness changes by a lot.

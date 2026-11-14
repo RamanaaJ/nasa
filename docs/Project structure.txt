@@ -1,0 +1,17 @@
+
+
+nsac/
+├── main.py              # FastAPI app and endpoints
+├── data_mock.py         # fake data generator
+├── data_irsa.py         # real data (written later)
+├── processing.py        # cutouts, stretch, difference, PNG
+├── targets.py           # the 5 test targets with coordinates
+├── static/
+│   ├── index.html
+│   └── app.js
+├── data/mock/           # fake FITS files
+├── cache/               # saved cutouts (so repeat requests are fast)
+├── PROJECT_BRIEF.md
+├── CHALLENGE.md
+├── PROGRESS.md
+└── requirements.txt
