@@ -39,6 +39,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - PNGs are flipped so north is up; small images are enlarged with nearest neighbour (whole-number factor, about 400 px)
 - Cutouts outside the image edge are filled with NaN (image, variance) or 0 (flags); NaN pixels are drawn black
 - Default stretch is sqrt, with 1% / 99.5% percentile clipping (a guess to retune on real data)
+- Extra ideas are tracked in TODO_LIST.md (marked "new") and Priority 5 in Priority_list.txt
+- TODO_LIST.md replaces Todo_List.pdf
+- All FOV values use arcminutes (config.py needs DEFAULT_FOV_ARCMIN)
+- Name search checks local targets first, then the online lookup
 
 ## Known problems
 
@@ -51,6 +55,8 @@ M1: Mock data generator (preparing: verifying targets first)
 - Mock FLAGS/VARIANCE extensions have no WCS of their own
 - No function yet turns the mock FITS files into frames; test_processing.py builds them by hand. A mock get_frames() is needed before the Frames endpoint (Backend 8)
 - FOV minimum/maximum limits not enforced yet (Backend 12)
+- config.py has DEFAULT_FOV_DEG (degrees) but FRAME_FORMAT.md uses arcminutes
+- Online name lookup depends on CDS, which is currently down
 
 ## How to run and test
 
