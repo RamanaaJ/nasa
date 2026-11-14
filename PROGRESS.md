@@ -14,6 +14,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 4: data_mock.py now also writes FLAGS (bits 1=bad, 2=cosmic ray, 4=contaminated) and VARIANCE extensions; check_mock.py checks them
 - Todo Backend 5: processing.py with cutout_frame (WCS-based, returns a new frame), stretch_image (linear/sqrt/log + percentile clip) and image_to_png_bytes / frame_to_png; test_processing.py checks it and saves PNGs to cache/test_png/
 - Todo Backend 6: config.py with USE_MOCK, RELEASE_NAME, DEFAULT_FOV_ARCMIN, MAX_FRAMES, plus MOCK_DIR / CACHE_DIR paths. python config.py prints the settings.
+- Todo Backend 7: config.py now has MIN_FOV_ARCMIN (1.0) and MAX_FOV_ARCMIN (30.0) next to DEFAULT_FOV_ARCMIN (6.0); all FOV values in arcminutes. Limits are not enforced yet.
 
 ## In progress
 
@@ -21,7 +22,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 7: Config limits and units (MIN_FOV_ARCMIN, MAX_FOV_ARCMIN; waiting for go-ahead)
+- Todo Backend 8: Cache (waiting for go-ahead)
 
 ## Decisions made
 
@@ -44,6 +45,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - TODO_LIST.md replaces Todo_List.pdf
 - All FOV values use arcminutes (config.py needs DEFAULT_FOV_ARCMIN)
 - Name search checks local targets first, then the online lookup
+- FOV limits 1 to 30 arcmin are guesses; 30 is large enough for Eps Ind A and B (about 6.7 arcmin apart). Retune on real data.
 
 ## Known problems
 
@@ -56,11 +58,11 @@ M1: Mock data generator (preparing: verifying targets first)
 - Mock FLAGS/VARIANCE extensions have no WCS of their own
 - No function yet turns the mock FITS files into frames; test_processing.py builds them by hand. A mock get_frames() is needed before the Frames endpoint (Backend 8)
 - FOV minimum/maximum limits not enforced yet (Backend 12)
-- config.py has DEFAULT_FOV_DEG (degrees) but FRAME_FORMAT.md uses arcminutes
 - Online name lookup depends on CDS, which is currently down
 - config.py is the single place for settings; other files use import config
 - config.py uses DEFAULT_FOV_ARCMIN (arcminutes) from the start; the old degrees version is not carried over
 - MAX_FRAMES = 50 and RELEASE_NAME = "spherex_qr2" are placeholders, not verified values
+- FOV limits exist in config.py but are not enforced yet (Backend 11 and 15)
 
 ## How to run and test
 

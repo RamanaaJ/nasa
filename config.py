@@ -19,8 +19,13 @@ RELEASE_NAME = "spherex_qr2"
 
 # ---------- Field of view ----------
 # All field-of-view values in this project use ARCMINUTES (see FRAME_FORMAT.md).
-# Minimum and maximum limits come later (TODO Backend 7).
+# The limits below are NOT enforced yet. Enforcement comes in Backend 11
+# (URL validation) and Backend 15 (FOV handling).
+MIN_FOV_ARCMIN = 1.0       # smallest patch allowed (guess; retune on real data)
 DEFAULT_FOV_ARCMIN = 6.0   # matches the FOV used in test_processing.py
+# Must be big enough to show Eps Ind B and its star (about 6.7 arcmin apart).
+# Bigger patches mean slower downloads on real data.
+MAX_FOV_ARCMIN = 30.0      # largest patch allowed (guess; retune on real data)
 
 # ---------- Limits ----------
 # Most frames returned for one request. 50 is a starting guess; retune on real data.
@@ -36,7 +41,11 @@ if __name__ == "__main__":
     # Quick self-test: run  python config.py
     print("USE_MOCK           :", USE_MOCK)
     print("RELEASE_NAME       :", RELEASE_NAME, "(unverified placeholder)")
+    print("MIN_FOV_ARCMIN     :", MIN_FOV_ARCMIN)
     print("DEFAULT_FOV_ARCMIN :", DEFAULT_FOV_ARCMIN)
+    print("MAX_FOV_ARCMIN     :", MAX_FOV_ARCMIN)
+    print("FOV order OK (min <= default <= max):",
+          MIN_FOV_ARCMIN <= DEFAULT_FOV_ARCMIN <= MAX_FOV_ARCMIN)
     print("MAX_FRAMES         :", MAX_FRAMES)
     print("MOCK_DIR           :", MOCK_DIR, "| exists:", MOCK_DIR.exists())
     print("CACHE_DIR          :", CACHE_DIR)
