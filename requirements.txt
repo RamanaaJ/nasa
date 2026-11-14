@@ -44,3 +44,9 @@ tzdata==2026.6
 urllib3==2.8.0
 uvicorn==0.54.0
 webencodings==0.6.1
+
+
+# Ask before installing (not needed yet):
+# pytest      (tests)
+# scipy       (auto-find movers, only if we build it)
+# SPXQuery    (real spectra, after the data arrives)

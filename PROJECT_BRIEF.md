@@ -20,6 +20,11 @@ moving or changing objects are easy to spot.
 - Adjustable field of view
 - Add/subtract images (difference imaging)
 - Spectra, Gaia/WISE overlays, contamination flags
+- Search by name and flexible coordinate formats
+- Blink compare, motion trail, expected-path marker
+- "Is it real?" hint (detector/wavelength change warning)
+- Export a find as CSV
+- Practice game and guided mission for beginners
 
 ## Tech stack
 
@@ -35,3 +40,5 @@ moving or changing objects are easy to spot.
 - Do not rewrite files I didn't ask about.
 - Ask me before installing new libraries.
 - Keep data loading separate from display so real data can replace mock data easily.
+- Name search must work offline for the 5 targets, because online name lookup (CDS) may be down.
+- New ideas come after the must-haves (M1 to M5). Do not start them unasked.

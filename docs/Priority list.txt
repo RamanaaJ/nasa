@@ -27,6 +27,28 @@ Priority 4: Stretch goals
 19	Download animation as GIF
 20	Pretty design, mobile layout, a tutorial for beginners
 Build order (milestones)
+Priority 5: Our own ideas (not in the challenge)
+#	Feature	Priority tier
+21	Search by name	High payoff, low effort
+22	Flexible coordinate input	High payoff, low effort
+23	asinh stretch + frame counter, loop toggle, copy-link button	High payoff, low effort
+24	Background-level matching	"Wow" feature
+25	Blink compare	"Wow" feature
+26	"Is it real?" hint	"Wow" feature
+27	Expected-path marker	"Wow" feature
+28	Motion trail	"Wow" feature
+29	Spectrum comparison (mover vs fixed star)	"Wow" feature
+30	Hover readout + magnifier	Stretch
+31	Wavelength colour strip	Stretch
+32	Colour picture from 3 wavelengths	Stretch
+33	Export a find as CSV	Stretch
+34	Keyboard shortcuts + swipe	Stretch
+35	Skip mostly-bad frames	Stretch
+36	Practice game (needs practice mock files)	Stretch
+37	Guided mission tutorial	Stretch
+38	Accessibility and polish	Stretch
+39	Auto-find movers (optional, ask before installing any library)	Stretch
+40	Future-work notes	Stretch
 
 Each milestone should be testable on its own and ends with a git commit:
 
@@ -34,8 +56,8 @@ M1: Mock data generator
 M2: Processing: cutout + stretch + PNG
 M3: API endpoint returning mock frames
 M4: Web page with animation
-M5: URL parameters + FOV + presets (all on mock data)
+M5: URL parameters + FOV + presets (all on mock data), search by name, flexible coordinates, config limits, copy-link, frame counter
 M6: Real data layer (once data access is clear)
-M7: Difference imaging and stacking
-M8: Spectra, flags, overlays
-M9: Polish, README, demo recording
+M7: Difference imaging and stacking, asinh, background matching, blink compare, motion trail, colour picture
+M8: Spectra, flags, overlays, "Is it real?", expected path, spectrum comparison, CSV export, hover readout
+M9: Polish, README, demo recording, practice game, guided mission, accessibility, future-work notes
