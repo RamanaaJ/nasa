@@ -31,6 +31,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 20: motion trail data. processing.py has find_moving_dot (fixed sky = median of all frames, subtract, brightest leftover spot + centroid; returns one dictionary per frame with found, x, y, png_x, png_y, ra_deg, dec_deg, snr, obs_time) and pixel_to_png_position (data pixel -> position in the PNG, undoing the north-up flip and the whole-number enlargement). image_to_png_bytes now shares \_png_factor with it. Not connected to main.py yet. test_trail.py checks it (offline parts + mock-data part).
 - Todo Backend 21: colour picture. processing.py has pick_colour_frames (longest wavelength = red, middle = green, shortest = blue), colour_picture (stretches 3 frames and stacks them into a (height, width, 3) uint8 array; channels=(r, g, b) to choose frames by hand; shared_scale=False/True) and rgb_to_png_bytes (colour PNG, north up, same enlargement as the grey PNG). Not connected to main.py yet. test_colour.py checks it (offline parts + mock-data part).
 - Todo Backend 22: expected path. targets.py has decimal_year (datetime -> year number) and expected_positions (target id + list of times -> list of (ra, dec) using position_at_epoch). processing.py has locate_in_frames (sky positions -> pixel x, y, png_x, png_y and an "inside" flag for each frame, using the frame's WCS). main.py has GET /api/expected-path?target=..&ra=..&dec=..&fov=..&mode=..&combine=..&group=.. returning one entry per frame (same numbering as /api/frames). test_expected.py checks it (offline parts + mock-data part + server part).
+- Todo Backend 23: practice mock files. data_practice.py (run: python data_practice.py) writes 12 fake FITS files to data/practice/ (same parts and header names as the mock files, no DOTX/DOTY) with 4 hidden movers at different speeds (A slow 0.6, B medium about 1.7, C fast about 3.0, D very fast about 4.7 pixels per frame) plus the fixed stars, on a fake sky centred on RA 150.0, Dec +2.0. The answers are in a separate file, data/practice/answers.json (per mover and per frame: x, y, ra_deg, dec_deg, obs_time, speeds). data_practice.get_frames() reads the files back as frames. config.py has PRACTICE_DIR. data/practice/ is in .gitignore. test_practice_data.py checks it. Not connected to main.py yet.
 
 ## In progress
 
@@ -38,7 +39,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 22: Expected-path function (waiting for go-ahead)
+- Todo Backend 24: Practice game answer check (waiting for go-ahead).
 
 ## Decisions made
 
@@ -103,6 +104,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - A colour picture mixes frames from different dates. Fixed sources look white or grey, moving sources show as separate red, green and blue dots. That is intended; it is not a real colour of the object.
 - rgb_to_png_bytes uses the same flip and enlargement as image_to_png_bytes, so pixel_to_png_position() also works for colour pictures.
 - Expected path: target is matched with names.resolve_local (same tolerant spelling as name search, offline; only the 5 built-in targets). The path uses each frame's obs_time (a stacked frame uses its mean time) and position_at_epoch (straight-line proper motion from J2000, no parallax). The endpoint takes the same ra/dec/fov/mode/combine/group as /api/frames so entry N belongs to frame N. A position outside the frame still gets x, y but inside=False.
+- Practice set: its own folder (data/practice/) and its own sky position, so it never mixes with the normal mock data or its cache. The FITS files do not contain the answers; answers.json is never served (only static/ is served). The files use the same extension and header names as the mock files, so data_mock.load_mock_frame() reads them.
+- Practice mover speeds, brightness (90-150), start positions and the sky centre (150.0, +2.0) are my own choices, to retune when the game is built. Tracks avoid the fixed stars. Cosmic rays and dead pixels come from the mock helpers (cosmic rays avoid rows 40-59 only), so a dead pixel can hide a mover in one frame; that is fine for a game.
+- All practice frames share one WCS (like the mock frames), so pixel tracks in answers.json refer to the full 100x100 image. Use ra_deg/dec_deg for anything that must survive cutting.
 
 ## Known problems
 
@@ -159,6 +163,8 @@ M1: Mock data generator (preparing: verifying targets first)
 - The mock dot moves at 10x WISE 0855's real proper motion (SPEED_BOOST), so on mock data the expected path only agrees with the dot in frame 0; later frames drift apart by design. On real data they should line up (check in after-data #22).
 - Expected path ignores parallax. For nearby stars (Barnard's Star, Eps Ind) and SPHEREx's Earth-orbit viewpoint this may cause offsets of a pixel or so; check on real data.
 - With mock data only the WISE 0855 target has frames (same as the other presets), so the other 4 targets give 404.
+- The practice set is not wired into main.py (no practice frames endpoint, no cache key for it). The frames endpoint still only serves the normal mock data. Wiring it (e.g. a source parameter) needs a go-ahead; cache.current_release() returns "mock" for both, so a practice request must not share the mock cache key.
+- After re-running data_practice.py nothing in the cache refers to practice data (it is not cached), so no cache clearing is needed.
 
 ## How to run and test
 
@@ -183,3 +189,5 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_trail.py (motion trail; mock-data part needs data/mock/ files)
 - python test_colour.py (colour picture; mock-data part needs data/mock/ files and saves cache/test_png/colour_mock.png)
 - python test_expected.py (expected path; mock-data part needs data/mock/ files; server part if uvicorn is running)
+- python data_practice.py (creates data/practice/practice_00..11.fits and answers.json)
+- python test_practice_data.py (checks the practice files and answers; skipped if they do not exist)

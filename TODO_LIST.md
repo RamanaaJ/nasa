@@ -58,8 +58,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Use three bands as red, green and blue to make one colour image. Test on mock data first.
 22. [✔] Expected-path function (new) (Part E)
     Use position_at_epoch() to return where a known star should be on each frame's date. Add a small endpoint for it (Part C).
-23. [ ] Practice mock files (new) (Part A)
-        A second mock set with several dots moving at different speeds, for the practice game. Keep the answers in a separate file.
+23. [✔] Practice mock files (new) (Part A)
+    A second mock set with several dots moving at different speeds, for the practice game. Keep the answers in a separate file.
 24. [ ] Practice game answer check (new) (Part C)
         A small endpoint that says whether a clicked position is close enough to a hidden mover.
 25. [ ] Real data skeleton (#5) (Part A)

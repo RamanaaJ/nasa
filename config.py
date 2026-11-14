@@ -34,6 +34,7 @@ MAX_FRAMES = 50
 # ---------- Folders ----------
 BASE_DIR = Path(__file__).parent
 MOCK_DIR = BASE_DIR / "data" / "mock"   # where data_mock.py writes the fake files
+PRACTICE_DIR = BASE_DIR / "data" / "practice"   # where data_practice.py writes the practice files
 CACHE_DIR = BASE_DIR / "cache"          # used by the cache step later (Backend 8)
 
 
