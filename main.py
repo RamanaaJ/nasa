@@ -3,6 +3,7 @@
 # Then open  http://127.0.0.1:8000/docs  to try the endpoints in your browser.
 #
 # Jobs:
+#   GET /api/targets?year=..                                 the 5 preset targets (JSON)
 #   GET /api/frames?ra=..&dec=..&fov=..&mode=..&stretch=..   list of frames (JSON)
 #   GET /api/frames/{index}/image?...                        one frame as a PNG picture
 #   everything else                                          files from the static/ folder
@@ -16,6 +17,7 @@
 
 from pathlib import Path
 from urllib.parse import urlencode
+import math                      
 
 import numpy as np
 from astropy.wcs.utils import proj_plane_pixel_scales
@@ -28,6 +30,7 @@ import config
 import data_mock
 import params
 import processing
+import targets  
 
 app = FastAPI(title="SPHEREx Sky Viewer")
 
@@ -39,7 +42,7 @@ DEC_HELP = "Declination. Degrees (-7.2) or -07d14m42s, -07:14:42."
 FOV_HELP = f"Field of view in arcminutes, {config.MIN_FOV_ARCMIN:g} to {config.MAX_FOV_ARCMIN:g}. Default {config.DEFAULT_FOV_ARCMIN:g}."
 STRETCH_HELP = "Brightness stretch: " + ", ".join(processing.STRETCH_MODES) + f". Default {params.DEFAULT_STRETCH}."
 MODE_HELP = "How frames are combined: " + ", ".join(params.READY_MODES) + f". Default {params.DEFAULT_MODE}."
-
+YEAR_HELP = "Optional year, for example 2026.0. Positions are moved to that year using proper motion. Empty = J2000."
 
 def check_request(ra, dec, fov, stretch, mode):
     """Check the settings from the address. Bad input becomes a clear HTTP 400."""
@@ -134,6 +137,25 @@ def frame_image(
     grey = processing.stretch_image(frames[index]["image"], mode=p.stretch)
     return Response(content=processing.image_to_png_bytes(grey), media_type="image/png")
 
+@app.get("/api/targets")
+def list_targets(year: str | None = Query(None, description=YEAR_HELP)):
+    """The 5 preset targets, for the page's preset buttons."""
+    epoch = None
+    if year is not None and year.strip():
+        try:
+            epoch = float(year.strip())
+        except ValueError:
+            raise HTTPException(status_code=400,
+                                detail=f"The year '{year}' is not a number. Use for example year=2026.")
+        if not (math.isfinite(epoch) and 1900 <= epoch <= 2100):
+            raise HTTPException(status_code=400,
+                                detail="The year must be between 1900 and 2100.")
+    items = targets.target_list(epoch)
+    return {
+        "epoch": "J2000" if epoch is None else epoch,
+        "count": len(items),
+        "targets": items,
+    }
 
 # Serve the web page files. This MUST stay last, because it matches every other address.
 STATIC_DIR.mkdir(exist_ok=True)

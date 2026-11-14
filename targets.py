@@ -76,6 +76,33 @@ def position_at_epoch(target_id, year):
     d_ra = t["pmra_mas_yr"] * years / 3_600_000 / math.cos(math.radians(t["dec_deg"]))
     return t["ra_deg"] + d_ra, t["dec_deg"] + d_dec
 
+def target_list(year=None):
+    """Return the 5 targets as a list of small dictionaries (for the web page).
+
+    year: None  -> ra_deg / dec_deg are the J2000 positions.
+          2026.0 -> ra_deg / dec_deg are moved to that year with
+                    position_at_epoch() (proper motion).
+    The J2000 position is always included as ra_j2000_deg / dec_j2000_deg.
+    """
+    items = []
+    for tid, t in TARGETS.items():
+        if year is None:
+            ra, dec = t["ra_deg"], t["dec_deg"]
+        else:
+            ra, dec = position_at_epoch(tid, year)
+        items.append({
+            "id": tid,
+            "label": t["label"],
+            "simbad_name": t["simbad_name"],
+            "ra_deg": ra % 360.0,
+            "dec_deg": dec,
+            "ra_j2000_deg": t["ra_deg"],
+            "dec_j2000_deg": t["dec_deg"],
+            "pmra_mas_yr": t["pmra_mas_yr"],
+            "pmdec_mas_yr": t["pmdec_mas_yr"],
+            "note": t["note"],
+        })
+    return items
 
 if __name__ == "__main__":
     # Quick self-test: run  python targets.py

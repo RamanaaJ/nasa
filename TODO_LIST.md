@@ -38,8 +38,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Accept ra, dec, fov, mode, stretch. Reject bad ranges (RA 0-360, Dec -90 to 90).
 12. [✔] Search by name (new) (Part E)
     Type "Barnard's Star" instead of numbers. Check our 5 local targets first, then astropy's name lookup. The CDS name service may be down (see PROGRESS.md), so show a friendly message if it fails.
-13. [ ] Targets endpoint (#6, #8) (Part C)
-        Send the 5 presets to the page so the buttons come from one source.
+13. [✔] Targets endpoint (#6, #8) (Part C)
+    Send the 5 presets to the page so the buttons come from one source.
 14. [ ] Friendly errors (#11) (Part C)
         Return clear JSON messages for no images, bad input, slow data and server errors.
 15. [ ] FOV handling (#9) (Part B)
