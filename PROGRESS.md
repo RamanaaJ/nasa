@@ -2,20 +2,22 @@
 
 ## Current milestone
 
-M1: Mock data generator
+M1: Mock data generator (preparing: verifying targets first)
 
 ## Done
 
 - Environment set up (Python 3.13, venv, libraries installed)
 - Project brief, challenge text, priority list, structure created
+- Todo Backend 1: workflow files created (PROGRESS.md, FRAME_FORMAT.md,
+  docs/DATA_NOTES.md, rules file, .gitignore) and committed to Git
 
 ## In progress
 
-- (nothing yet)
+- Todo Backend 2: Verify the 5 targets (SIMBAD script written, not yet run)
 
 ## Next step
 
-- Create data_mock.py (see FRAME_FORMAT.md)
+- Run verify_targets.py, paste the output, then write targets.py
 
 ## Decisions made
 
