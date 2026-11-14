@@ -34,8 +34,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
    Return the frame list with image links, dates, detectors and wavelengths. Also serve static/. Include the pixel scale and centre so the page can show sky positions on hover (new).
 10. [✔] Flexible coordinate input (new) (Part E)
     A helper that accepts plain degrees and sexagesimal text such as 08h55m10.8s -07d14m42s. Rejects nonsense with a friendly message.
-11. [ ] URL parameters and validation (#7, #9) (Part C)
-        Accept ra, dec, fov, mode, stretch. Reject bad ranges (RA 0-360, Dec -90 to 90).
+11. [✔] URL parameters and validation (#7, #9) (Part C)
+    Accept ra, dec, fov, mode, stretch. Reject bad ranges (RA 0-360, Dec -90 to 90).
 12. [ ] Search by name (new) (Part E)
         Type "Barnard's Star" instead of numbers. Check our 5 local targets first, then astropy's name lookup. The CDS name service may be down (see PROGRESS.md), so show a friendly message if it fails.
 13. [ ] Targets endpoint (#6, #8) (Part C)

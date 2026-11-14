@@ -77,6 +77,8 @@ check(f"the cache now holds {n_files} file(s) (should be 1 or more)", n_files >=
 print("\n--- Test 3: a different stretch ---")
 r2 = requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC, "fov": FOV, "stretch": "log"})
 check("log stretch is accepted and put in the links", "stretch=log" in r2.json()["frames"][0]["image_url"])
+check("capital letters are fine (stretch=LOG)",
+      requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC, "stretch": "LOG"}).status_code == 200)
 check("a bad stretch gives 400",
       requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC, "stretch": "banana"}).status_code == 400)
 
@@ -87,11 +89,14 @@ print("   message:", no_img.json().get("detail"))
 far = requests.get(f"{BASE}/api/frames", params={"ra": (RA + 5) % 360, "dec": DEC, "fov": FOV})
 check("a position far from the images gives 404", far.status_code == 404)
 print("   message:", far.json().get("detail"))
-check("RA 400 is refused (422)", requests.get(f"{BASE}/api/frames", params={"ra": 400, "dec": 0}).status_code == 422)
-check("Dec 95 is refused (422)", requests.get(f"{BASE}/api/frames", params={"ra": 10, "dec": 95}).status_code == 422)
-check("FOV 100 is refused (422, above the limit)",
-      requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC, "fov": 100}).status_code == 422)
-check("missing RA is refused (422)", requests.get(f"{BASE}/api/frames", params={"dec": 0}).status_code == 422)
+for label, query in [("RA 400", {"ra": 400, "dec": 0}),
+                     ("Dec 95", {"ra": 10, "dec": 95}),
+                     ("FOV 100 (above the limit)", {"ra": RA, "dec": DEC, "fov": 100})]:
+    resp = requests.get(f"{BASE}/api/frames", params=query)
+    check(f"{label} is refused with 400 and a message", resp.status_code == 400 and "detail" in resp.json())
+    print("   message:", resp.json().get("detail"))
+check("missing RA is refused (422, FastAPI's own message)",
+      requests.get(f"{BASE}/api/frames", params={"dec": 0}).status_code == 422)
 
 print("\n--- Test 5: the static/ folder is served ---")
 STATIC_DIR.mkdir(exist_ok=True)
@@ -112,6 +117,54 @@ finally:
     else:
         print("   (could not delete static/_test_probe.txt; delete it by hand)")
 check("the API still works next to static files", requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC}).status_code == 200)
+
+print("\n--- Test 6: URL parameters (Backend 11) ---")
+
+
+def to_hms(ra_deg):
+    hours = ra_deg / 15
+    h = int(hours)
+    m = int((hours - h) * 60)
+    sec = (hours - h - m / 60) * 3600
+    return f"{h:02d}h{m:02d}m{sec:07.4f}s"
+
+
+def to_dms(dec_deg):
+    sign = "-" if dec_deg < 0 else "+"
+    d = abs(dec_deg)
+    deg = int(d)
+    m = int((d - deg) * 60)
+    sec = (d - deg - m / 60) * 3600
+    return f"{sign}{deg:02d}d{m:02d}m{sec:07.4f}s"
+
+
+hms, dms = to_hms(RA), to_dms(DEC)
+print(f"   RA {RA:.5f} written as {hms}, Dec {DEC:.5f} written as {dms}")
+r = requests.get(f"{BASE}/api/frames", params={"ra": hms, "dec": dms, "fov": FOV})
+check("sexagesimal RA and Dec are accepted", r.status_code == 200)
+echo = r.json()
+check("they come back as the same degrees",
+      abs(echo.get("ra_deg", 0) - RA) < 1e-5 and abs(echo.get("dec_deg", 0) - DEC) < 1e-5)
+check("the image links use plain numbers", "ra=" + str(echo["ra_deg"]) in echo["frames"][0]["image_url"])
+
+r = requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC})
+check("fov missing -> default 6 arcmin", r.status_code == 200 and r.json()["fov_arcmin"] == 6.0)
+check("mode missing -> normal, and it is in the links",
+      r.json()["mode"] == "normal" and "mode=normal" in r.json()["frames"][0]["image_url"])
+check("mode=normal is accepted",
+      requests.get(f"{BASE}/api/frames", params={"ra": RA, "dec": DEC, "mode": "normal"}).status_code == 200)
+
+for label, query in [("mode=difference (not built yet)", {"ra": RA, "dec": DEC, "mode": "difference"}),
+                     ("mode=banana", {"ra": RA, "dec": DEC, "mode": "banana"}),
+                     ("fov=big", {"ra": RA, "dec": DEC, "fov": "big"}),
+                     ("ra=abc", {"ra": "abc", "dec": DEC}),
+                     ("RA hours 25h", {"ra": "25h", "dec": 0})]:
+    resp = requests.get(f"{BASE}/api/frames", params=query)
+    check(f"{label} gives 400 and a message", resp.status_code == 400 and "detail" in resp.json())
+    print("   message:", resp.json().get("detail"))
+
+bad_image = requests.get(f"{BASE}/api/frames/0/image", params={"ra": RA, "dec": 95})
+check("the image endpoint checks the settings too", bad_image.status_code == 400)
 
 print("\nTry it in your browser:")
 print(f"  {BASE}/api/frames?ra={RA}&dec={DEC}&fov={FOV}")

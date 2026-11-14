@@ -19,6 +19,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 9: main.py (FastAPI) with GET /api/frames (list with image links, dates, detectors, wavelengths, pixel scale, centre), GET /api/frames/{index}/image (PNG) and static/ serving; data_mock.py now has get_frames() (cutouts from the mock files); cache.py uses a lock for simultaneous requests; test_frames_api.py checks the endpoint.
 - Todo Backend 9 checked live: all test_frames_api.py checks passed (cleanup bug on Windows fixed).
 - Todo Backend 10: coords.py (parse_coordinates, parse_ra, parse_dec, CoordinateError) accepts degrees, 08h55m10.8s, 08:55:10.8 and 08 55 10.8 forms and gives friendly errors; test_coords.py checks it.
+- Todo Backend 11: params.py (validate_request) checks ra, dec, fov, mode, stretch from the URL; main.py uses it; bad values return HTTP 400 with a friendly message; ra/dec accept degrees or sexagesimal via coords.py; test_params.py and test_frames_api.py (Test 6) check it.
 
 ## In progress
 
@@ -26,7 +27,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 11: URL parameters and validation (waiting for go-ahead)
+- Todo Backend 12: Search by name (waiting for go-ahead)
 
 ## Decisions made
 
@@ -59,6 +60,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - Run the server with: uvicorn main:app --reload
 - coords.py: plain numbers are degrees; sexagesimal RA without a unit letter is hours; Dec is always degrees. Pure Python, no astropy.
 - CoordinateError subclasses ValueError. Name search (Backend 12) is a separate step.
+- URL settings: ra, dec (text, parsed by coords.py), fov (arcmin, limits from config.py, empty = default), stretch (processing.STRETCH_MODES), mode (normal, difference, stack; only normal is built).
+- Bad URL values give HTTP 400 with {"detail": "..."}; a missing ra/dec still gives FastAPI's 422 until Backend 14.
+- When a new mode is built (Backend 18/19), add its name to READY_MODES in params.py. New stretches (asinh) appear automatically.
 
 ## Known problems
 
@@ -70,15 +74,14 @@ M1: Mock data generator (preparing: verifying targets first)
 - Mock extension names (FLAGS, VARIANCE) and the variance recipe are guesses; real file layout must be inspected (Backend after-data #1)
 - Mock FLAGS/VARIANCE extensions have no WCS of their own
 - No function yet turns the mock FITS files into frames; test_processing.py builds them by hand. A mock get_frames() is needed before the Frames endpoint (Backend 9)
-- FOV minimum/maximum limits not enforced yet (Backend 12)
 - Online name lookup depends on CDS, which is currently down
 - config.py is the single place for settings; other files use import config
 - config.py uses DEFAULT_FOV_ARCMIN (arcminutes) from the start; the old degrees version is not carried over
 - MAX_FRAMES = 50 and RELEASE_NAME = "spherex_qr2" are placeholders, not verified values
-- FOV limits exist in config.py but are not enforced yet (Backend 11 and 15)
 - cache.py is not used by anything yet; the Frames endpoint (Backend 9) will call get_or_load. config.py's CACHE_DIR is used by cache.py.
 - Real data returns 501 until data_irsa.py exists (Backend 25).
-- coords.py is not used by main.py yet (Backend 11 will connect it). Decimal commas (133,8) are not supported; a comma means "separator".
+- FOV limits are enforced by params.py (from config.py).
+- A "+" in a URL means a space, so +04d41m36s loses its sign (still positive).
 
 ## How to run and test
 
@@ -90,3 +93,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - uvicorn main:app --reload (start the server; docs at http://127.0.0.1:8000/docs)
 - python test_frames_api.py (with the server running)
 - python test_coords.py (checks coordinate parsing) and python coords.py "08h55m10.8s -07d14m42s" (try one by hand)
+- python test_params.py (checks URL settings)

@@ -2,13 +2,17 @@
 # The web server (FastAPI). Start it with:   uvicorn main:app --reload
 # Then open  http://127.0.0.1:8000/docs  to try the endpoints in your browser.
 #
-# Backend 9 gives it three jobs:
-#   GET /api/frames?ra=..&dec=..&fov=..   list of frames (JSON) with image links
-#   GET /api/frames/{index}/image?...     one frame as a PNG picture
-#   everything else                       files from the static/ folder
+# Jobs:
+#   GET /api/frames?ra=..&dec=..&fov=..&mode=..&stretch=..   list of frames (JSON)
+#   GET /api/frames/{index}/image?...                        one frame as a PNG picture
+#   everything else                                          files from the static/ folder
+#
+# Backend 11: every setting in the address is checked by params.py first.
+# A bad value gives a clear message (HTTP 400) instead of a crash.
 #
 # main.py only connects the other files. The real work is done elsewhere:
-#   data_mock.py -> frames,  cache.py -> saves them,  processing.py -> PNG.
+#   params.py -> checks the address,  data_mock.py -> frames,
+#   cache.py -> saves them,  processing.py -> PNG.
 
 from pathlib import Path
 from urllib.parse import urlencode
@@ -22,14 +26,30 @@ from fastapi.staticfiles import StaticFiles
 import cache
 import config
 import data_mock
+import params
 import processing
 
 app = FastAPI(title="SPHEREx Sky Viewer")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Text shown in the /docs page for the settings
+RA_HELP = "Right ascension. Degrees (133.8) or hours (08h55m10.8s, 08:55:10.8)."
+DEC_HELP = "Declination. Degrees (-7.2) or -07d14m42s, -07:14:42."
+FOV_HELP = f"Field of view in arcminutes, {config.MIN_FOV_ARCMIN:g} to {config.MAX_FOV_ARCMIN:g}. Default {config.DEFAULT_FOV_ARCMIN:g}."
+STRETCH_HELP = "Brightness stretch: " + ", ".join(processing.STRETCH_MODES) + f". Default {params.DEFAULT_STRETCH}."
+MODE_HELP = "How frames are combined: " + ", ".join(params.READY_MODES) + f". Default {params.DEFAULT_MODE}."
 
-def frames_for(ra, dec, fov):
+
+def check_request(ra, dec, fov, stretch, mode):
+    """Check the settings from the address. Bad input becomes a clear HTTP 400."""
+    try:
+        return params.validate_request(ra, dec, fov, stretch, mode)
+    except ValueError as err:               # RequestError and CoordinateError are ValueErrors
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+def frames_for(p):
     """Get the frames for one request: from the cache, or from the data source."""
     if not config.USE_MOCK:
         # data_irsa.py does not exist yet (TODO Backend 25)
@@ -37,24 +57,17 @@ def frames_for(ra, dec, fov):
             status_code=501,
             detail="Real SPHEREx data is not connected yet. Set USE_MOCK = True in config.py.")
     try:
-        frames = cache.get_or_load(ra, dec, fov, data_mock.get_frames)
+        frames = cache.get_or_load(p.ra, p.dec, p.fov, data_mock.get_frames)
     except FileNotFoundError as err:        # mock files were never created
         raise HTTPException(status_code=503, detail=str(err))
-    except ValueError as err:               # e.g. bad field of view
+    except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     if not frames:
         raise HTTPException(status_code=404, detail="No images cover this sky position.")
     return frames
 
 
-def check_stretch(stretch):
-    if stretch not in processing.STRETCH_MODES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown stretch '{stretch}'. Use one of {list(processing.STRETCH_MODES)}.")
-
-
-def describe_frame(index, frame, ra, dec, fov, stretch):
+def describe_frame(index, frame, p):
     """Turn one frame into a small dictionary that can be sent as JSON."""
     height, width = frame["image"].shape
     wcs = frame["wcs"]
@@ -64,7 +77,8 @@ def describe_frame(index, frame, ra, dec, fov, stretch):
     # Sky position of the middle of this cutout (pixel numbers start at 0)
     centre_ra, centre_dec = wcs.pixel_to_world_values((width - 1) / 2, (height - 1) / 2)
 
-    query = urlencode({"ra": ra, "dec": dec, "fov": fov, "stretch": stretch})
+    # The link repeats every setting, in plain numbers, so it works on its own
+    query = urlencode({"ra": p.ra, "dec": p.dec, "fov": p.fov, "mode": p.mode, "stretch": p.stretch})
     return {
         "index": index,
         "image_url": f"/api/frames/{index}/image?{query}",
@@ -81,42 +95,43 @@ def describe_frame(index, frame, ra, dec, fov, stretch):
 
 @app.get("/api/frames")
 def list_frames(
-    ra: float = Query(..., ge=0, le=360, description="Right ascension in degrees"),
-    dec: float = Query(..., ge=-90, le=90, description="Declination in degrees"),
-    fov: float = Query(config.DEFAULT_FOV_ARCMIN, ge=config.MIN_FOV_ARCMIN,
-                       le=config.MAX_FOV_ARCMIN, description="Field of view in arcminutes"),
-    stretch: str = Query("sqrt", description="linear, sqrt or log (used in the image links)"),
+    ra: str = Query(..., description=RA_HELP),
+    dec: str = Query(..., description=DEC_HELP),
+    fov: str | None = Query(None, description=FOV_HELP),
+    stretch: str | None = Query(None, description=STRETCH_HELP),
+    mode: str | None = Query(None, description=MODE_HELP),
 ):
     """The frame list: one entry per image, sorted by date."""
-    check_stretch(stretch)
-    frames = frames_for(ra, dec, fov)
+    p = check_request(ra, dec, fov, stretch, mode)
+    frames = frames_for(p)
     return {
         "source": cache.current_release(),
-        "ra_deg": ra,
-        "dec_deg": dec,
-        "fov_arcmin": fov,
-        "stretch": stretch,
+        "ra_deg": p.ra,
+        "dec_deg": p.dec,
+        "fov_arcmin": p.fov,
+        "stretch": p.stretch,
+        "mode": p.mode,
         "frame_count": len(frames),
-        "frames": [describe_frame(i, f, ra, dec, fov, stretch) for i, f in enumerate(frames)],
+        "frames": [describe_frame(i, f, p) for i, f in enumerate(frames)],
     }
 
 
 @app.get("/api/frames/{index}/image")
 def frame_image(
     index: int,
-    ra: float = Query(..., ge=0, le=360),
-    dec: float = Query(..., ge=-90, le=90),
-    fov: float = Query(config.DEFAULT_FOV_ARCMIN, ge=config.MIN_FOV_ARCMIN,
-                       le=config.MAX_FOV_ARCMIN),
-    stretch: str = Query("sqrt"),
+    ra: str = Query(..., description=RA_HELP),
+    dec: str = Query(..., description=DEC_HELP),
+    fov: str | None = Query(None, description=FOV_HELP),
+    stretch: str | None = Query(None, description=STRETCH_HELP),
+    mode: str | None = Query(None, description=MODE_HELP),
 ):
     """One frame as a PNG picture. `index` is the number from the frame list."""
-    check_stretch(stretch)
-    frames = frames_for(ra, dec, fov)           # instant when it is already cached
+    p = check_request(ra, dec, fov, stretch, mode)
+    frames = frames_for(p)                      # instant when it is already cached
     if index < 0 or index >= len(frames):
         raise HTTPException(status_code=404,
                             detail=f"There is no frame {index}. This request has {len(frames)} frames.")
-    grey = processing.stretch_image(frames[index]["image"], mode=stretch)
+    grey = processing.stretch_image(frames[index]["image"], mode=p.stretch)
     return Response(content=processing.image_to_png_bytes(grey), media_type="image/png")
 
 
