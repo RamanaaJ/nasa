@@ -25,6 +25,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 14: errors.py holds the message wording; main.py has handlers so every error is JSON {"detail": "friendly sentence"}: missing settings (422), stock 404/405 wording, unexpected crashes (500, details only in the terminal). frames_for() now has a TimeoutError -> 504 branch and a no-images 404 that names the position. test_errors.py checks it (offline part + server part). All checks passed live.
 - Todo Backend 15: FOV handling. params.py rounds fov to 3 decimals (same as the cache key); main.py has GET /api/limits (min, max, default FOV in arcmin, from config.py); config.py comment corrected (limits are enforced). test_fov.py checks cutout sizes at 1, 3, 6, 15 and 30 arcmin, the limits and rounding (offline part + server part).
 - Todo Backend 16: processing.py has an "asinh" stretch (STRETCH_MODES now linear, sqrt, log, asinh; strength ASINH_SCALE = 10). params.py and the /docs help pick it up automatically, so stretch=asinh works in the URL. test_stretch.py checks it (offline part + server part).
+- Todo Backend 17: background-level matching. processing.py has estimate_background (median), match_backgrounds (shifts every frame to a common level, returns new frames), shared_limits (one black/white point pair for all frames) and stretch_image(limits=...). params.py has parse_match (match=on/off, default off); main.py passes match to /api/frames and /api/frames/{index}/image and puts match=on/off in the image links. test_background.py checks it (offline parts + server part).
 
 ## In progress
 
@@ -32,7 +33,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 17: Background-level matching (waiting for go-ahead)
+- Todo Backend 18: Difference imaging (waiting for go-ahead)
 
 ## Decisions made
 
@@ -79,6 +80,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - FOV is rounded to 3 decimals in params.parse_fov (cache.FOV_DECIMALS), so the cache key and the cutout always match. The range check uses the unrounded value.
 - /api/limits is the single source for the page's FOV control (min, max, default in arcmin, all from config.py).
 - asinh stretch: after the percentile clip, scaled = arcsinh(ASINH_SCALE \* x) / arcsinh(ASINH_SCALE). ASINH_SCALE = 10 is a guess, to retune on real data (after-data #15, #16). The default stretch stays sqrt.
+- Background matching (match=on/off, default off) is applied AFTER the cache, so cached cutouts and cache keys are unchanged. Background level = median of the finite pixels. Common level = median of all frames' levels. Only an additive offset is removed.
+- When match is on, the image endpoint also uses ONE shared brightness scale (shared_limits over all frames). Without it matching would show nothing, because stretch_image already subtracts each frame's own low percentile.
+- match accepts on/off, 1/0, true/false, yes/no (any capitals); anything else gives HTTP 400. The image links always carry match=on or match=off.
 
 ## Known problems
 
@@ -107,6 +111,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - Environment: Python 3.15 could not install PyYAML on Windows (no C++ compiler). The project uses Python 3.13; the venv was rebuilt with `py -3.13 -m venv venv`.
 - A FOV bigger than the image gives a cutout with NaN (black) edges; this is expected. On the mock data (about 10.3 arcmin wide) anything above about 10 arcmin has black edges.
 - MAX_FRAMES (config.py) is still not enforced anywhere. Planned for after-data #8 (Sort, group, limit).
+- Background matching removes only an offset, not scale differences between frames or bands. Real SPHEREx bands will probably differ in scale. Retune in after-data #16.
+- The mock frames already have almost the same background (noise around 10), so matching changes little on mock data; test_background.py uses frames with big offsets to prove it works.
+- estimate_background ignores flags (real flag bits are not known yet) and the median still includes stars in very crowded fields.
+- With match=on, each image request recomputes the levels from all frames (cheap on the mock data; recheck speed on real data, after-data #27).
 
 ## How to run and test
 
@@ -125,3 +133,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - First-time setup in a fresh clone: py -3.13 -m venv venv, .\venv\Scripts\Activate.ps1, pip install -r requirements.txt, python data_mock.py, python cache.py clear
 - python test_fov.py (cutout sizes and limits; server part if uvicorn is running)
 - python test_stretch.py (stretch modes; server part if uvicorn is running)
+- python test_background.py (background matching; server part if uvicorn is running)

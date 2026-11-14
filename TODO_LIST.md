@@ -46,8 +46,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Make cutout size a parameter and set sensible minimum and maximum limits.
 16. [✔] asinh stretch (new) (Part B)
     Add "asinh" to the stretch modes. Good for faint things next to bright ones.
-17. [ ] Background-level matching (new) (Part B)
-        Make the background level the same in every frame, so flicker is not mistaken for movement. Switchable on and off.
+17. [✔] Background-level matching (new) (Part B)
+    Make the background level the same in every frame, so flicker is not mistaken for movement. Switchable on and off.
 18. [ ] Difference imaging (#13) (Part B)
         Support "subtract first frame" and "subtract previous frame" on mock data.
 19. [ ] Stacking and adding (#14, added) (Part B)

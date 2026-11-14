@@ -4,6 +4,8 @@
 #   2. stretch_image()   turn raw pixel values into 0-255 grey levels
 #   3. image_to_png_bytes()  turn grey levels into PNG file bytes
 #   4. frame_to_png()    does all three in one call
+#   5. match_backgrounds() / shared_limits()   (Backend 17) same background and
+#      same brightness scale in every frame
 # This file never downloads data and never reads files.
 # A "frame" is a dictionary described in FRAME_FORMAT.md.
 
@@ -60,11 +62,14 @@ def cutout_frame(frame, ra_deg, dec_deg, fov_arcmin):
     return new_frame
 
 
-def stretch_image(image, mode="sqrt", low_pct=1.0, high_pct=99.5):
+def stretch_image(image, mode="sqrt", low_pct=1.0, high_pct=99.5, limits=None):
     """Turn raw pixel values into a uint8 array (0 = black, 255 = white).
 
     low_pct / high_pct: pixels below / above these percentiles become
     black / white. NaN pixels become black.
+    limits: None = work out the black and white points from this image alone.
+            A pair (vmin, vmax) = use these instead, so several frames can
+            share one brightness scale (see shared_limits).
     """
     if mode not in STRETCH_MODES:
         raise ValueError(f"Unknown stretch '{mode}'. Use one of {STRETCH_MODES}.")
@@ -73,7 +78,10 @@ def stretch_image(image, mode="sqrt", low_pct=1.0, high_pct=99.5):
     if not finite.any():                      # nothing usable: all black
         return np.zeros(image.shape, dtype=np.uint8)
 
-    vmin, vmax = np.percentile(image[finite], [low_pct, high_pct])
+    if limits is None:
+        vmin, vmax = np.percentile(image[finite], [low_pct, high_pct])
+    else:
+        vmin, vmax = limits
     if vmax <= vmin:                          # flat image: all black
         return np.zeros(image.shape, dtype=np.uint8)
 
@@ -90,6 +98,58 @@ def stretch_image(image, mode="sqrt", low_pct=1.0, high_pct=99.5):
         scaled = np.arcsinh(ASINH_SCALE * scaled) / np.arcsinh(ASINH_SCALE)
 
     return np.round(scaled * 255).astype(np.uint8)
+
+def estimate_background(image):
+    """The background level of one image: the median of its finite pixels.
+
+    The median is hardly moved by a few bright stars or one small moving dot.
+    Returns None if the image has no usable pixels.
+    (Flags are not used yet. Real flag meanings come after the data arrives.)
+    """
+    values = image[np.isfinite(image)]
+    if values.size == 0:
+        return None
+    return float(np.median(values))
+
+
+def match_backgrounds(frames):
+    """Return NEW frames whose backgrounds all sit at the same level.
+
+    Each image is shifted up or down (a plain subtraction) so its background
+    equals the median of all the frames' backgrounds. Stars keep their
+    contrast, NaN pixels stay NaN, and the original frames are not changed.
+    Frames with no usable pixels are returned unchanged.
+    Only an offset is removed. Differences in scale (brightness ratio)
+    between frames are NOT corrected.
+    """
+    levels = [estimate_background(f["image"]) for f in frames]
+    usable = [lv for lv in levels if lv is not None]
+    if not usable:
+        return list(frames)
+    target = float(np.median(usable))
+
+    matched = []
+    for frame, level in zip(frames, levels):
+        new_frame = dict(frame)               # copy, so the original is untouched
+        if level is not None:
+            new_frame["image"] = frame["image"] - (level - target)
+        matched.append(new_frame)
+    return matched
+
+
+def shared_limits(frames, low_pct=1.0, high_pct=99.5):
+    """Black and white points worked out from ALL frames together.
+
+    Returns (vmin, vmax) for stretch_image(limits=...), or None if there are
+    no usable pixels. Using one pair for every frame means the same pixel
+    value gets the same grey in every frame.
+    """
+    parts = [f["image"][np.isfinite(f["image"])] for f in frames]
+    parts = [p for p in parts if p.size > 0]
+    if not parts:
+        return None
+    vmin, vmax = np.percentile(np.concatenate(parts), [low_pct, high_pct])
+    return float(vmin), float(vmax)
 
 
 def image_to_png_bytes(grey, target_size=400):

@@ -5,7 +5,7 @@
 # Jobs:
 #   GET /api/limits                                          field-of-view limits (JSON)
 #   GET /api/targets?year=..                                 the 5 preset targets (JSON)
-#   GET /api/frames?ra=..&dec=..&fov=..&mode=..&stretch=..   list of frames (JSON)
+#   GET /api/frames?ra=..&dec=..&fov=..&mode=..&stretch=..&match=..   list of frames (JSON)
 #   GET /api/frames/{index}/image?...                        one frame as a PNG picture
 #   everything else                                          files from the static/ folder
 #
@@ -74,11 +74,12 @@ FOV_HELP = f"Field of view in arcminutes, {config.MIN_FOV_ARCMIN:g} to {config.M
 STRETCH_HELP = "Brightness stretch: " + ", ".join(processing.STRETCH_MODES) + f". Default {params.DEFAULT_STRETCH}."
 MODE_HELP = "How frames are combined: " + ", ".join(params.READY_MODES) + f". Default {params.DEFAULT_MODE}."
 YEAR_HELP = "Optional year, for example 2026.0. Positions are moved to that year using proper motion. Empty = J2000."
+MATCH_HELP = "Background matching: on or off. Default off. On = every frame gets the same background level and brightness scale."
 
-def check_request(ra, dec, fov, stretch, mode):
+def check_request(ra, dec, fov, stretch, mode, match=None):
     """Check the settings from the address. Bad input becomes a clear HTTP 400."""
     try:
-        return params.validate_request(ra, dec, fov, stretch, mode)
+        return params.validate_request(ra, dec, fov, stretch, mode, match)
     except ValueError as err:               # RequestError and CoordinateError are ValueErrors
         raise HTTPException(status_code=400, detail=str(err))
 
@@ -115,7 +116,8 @@ def describe_frame(index, frame, p):
     centre_ra, centre_dec = wcs.pixel_to_world_values((width - 1) / 2, (height - 1) / 2)
 
     # The link repeats every setting, in plain numbers, so it works on its own
-    query = urlencode({"ra": p.ra, "dec": p.dec, "fov": p.fov, "mode": p.mode, "stretch": p.stretch})
+    query = urlencode({"ra": p.ra, "dec": p.dec, "fov": p.fov, "mode": p.mode,
+                       "stretch": p.stretch, "match": "on" if p.match else "off"})
     return {
         "index": index,
         "image_url": f"/api/frames/{index}/image?{query}",
@@ -137,9 +139,10 @@ def list_frames(
     fov: str | None = Query(None, description=FOV_HELP),
     stretch: str | None = Query(None, description=STRETCH_HELP),
     mode: str | None = Query(None, description=MODE_HELP),
+    match: str | None = Query(None, description=MATCH_HELP),
 ):
     """The frame list: one entry per image, sorted by date."""
-    p = check_request(ra, dec, fov, stretch, mode)
+    p = check_request(ra, dec, fov, stretch, mode, match)
     frames = frames_for(p)
     return {
         "source": cache.current_release(),
@@ -148,10 +151,10 @@ def list_frames(
         "fov_arcmin": p.fov,
         "stretch": p.stretch,
         "mode": p.mode,
+        "match": p.match,
         "frame_count": len(frames),
         "frames": [describe_frame(i, f, p) for i, f in enumerate(frames)],
     }
-
 
 @app.get("/api/frames/{index}/image")
 def frame_image(
@@ -161,15 +164,22 @@ def frame_image(
     fov: str | None = Query(None, description=FOV_HELP),
     stretch: str | None = Query(None, description=STRETCH_HELP),
     mode: str | None = Query(None, description=MODE_HELP),
+    match: str | None = Query(None, description=MATCH_HELP),
 ):
     """One frame as a PNG picture. `index` is the number from the frame list."""
-    p = check_request(ra, dec, fov, stretch, mode)
+    p = check_request(ra, dec, fov, stretch, mode, match)
     frames = frames_for(p)                      # instant when it is already cached
     if index < 0 or index >= len(frames):
         raise HTTPException(status_code=404,
                             detail=f"There is no frame {index}. This request has {len(frames)} frames.")
-    grey = processing.stretch_image(frames[index]["image"], mode=p.stretch)
+    limits = None
+    if p.match:
+        # Needs ALL frames (the common level and scale), then we draw just one.
+        frames = processing.match_backgrounds(frames)
+        limits = processing.shared_limits(frames)
+    grey = processing.stretch_image(frames[index]["image"], mode=p.stretch, limits=limits)
     return Response(content=processing.image_to_png_bytes(grey), media_type="image/png")
+
 
 @app.get("/api/targets")
 def list_targets(year: str | None = Query(None, description=YEAR_HELP)):

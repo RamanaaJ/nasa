@@ -21,7 +21,9 @@ ALL_MODES = ("normal", "difference", "stack")
 READY_MODES = ("normal",)          # add a name here when its feature is built
 DEFAULT_MODE = "normal"
 DEFAULT_STRETCH = "sqrt"
-
+DEFAULT_MATCH = False              # background matching is off unless asked for
+_TRUE_WORDS = ("1", "true", "yes", "on")
+_FALSE_WORDS = ("0", "false", "no", "off")
 
 class RequestError(ValueError):
     """Something in the web address is wrong. The message is safe to show to a user."""
@@ -35,6 +37,7 @@ class Params:
     fov: float         # arcminutes, between the limits in config.py
     stretch: str       # one of processing.STRETCH_MODES
     mode: str          # one of READY_MODES
+    match: bool = False    # True = background matching is on
 
 
 def _blank(value):
@@ -82,8 +85,19 @@ def parse_mode(value):
         raise RequestError(f"The '{mode}' mode is not available yet. Available now: {', '.join(READY_MODES)}.")
     return mode
 
+def parse_match(value):
+    """Background matching on or off. Empty means off."""
+    if _blank(value):
+        return DEFAULT_MATCH
+    word = str(value).strip().lower()
+    if word in _TRUE_WORDS:
+        return True
+    if word in _FALSE_WORDS:
+        return False
+    raise RequestError(f"The match setting '{str(value).strip()}' is not understood. "
+                       f"Use match=on or match=off.")
 
-def validate_request(ra, dec, fov=None, stretch=None, mode=None):
+def validate_request(ra, dec, fov=None, stretch=None, mode=None, match=None):
     """Check all settings and return a Params. Raises RequestError (or
     coords.CoordinateError for a bad RA/Dec). Both are ValueErrors."""
     if _blank(ra) or _blank(dec):
@@ -94,4 +108,5 @@ def validate_request(ra, dec, fov=None, stretch=None, mode=None):
         fov=parse_fov(fov),
         stretch=parse_stretch(stretch),
         mode=parse_mode(mode),
+        match=parse_match(match),
     )
