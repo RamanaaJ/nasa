@@ -13,6 +13,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 3: data_mock.py writes 12 mock FITS files to data/mock/ (moving dot, WCS, DATE-OBS, DETECTOR, WAVE_UM in headers); check_mock.py reads them back
 - Todo Backend 4: data_mock.py now also writes FLAGS (bits 1=bad, 2=cosmic ray, 4=contaminated) and VARIANCE extensions; check_mock.py checks them
 - Todo Backend 5: processing.py with cutout_frame (WCS-based, returns a new frame), stretch_image (linear/sqrt/log + percentile clip) and image_to_png_bytes / frame_to_png; test_processing.py checks it and saves PNGs to cache/test_png/
+- Todo Backend 6: config.py with USE_MOCK, RELEASE_NAME, DEFAULT_FOV_ARCMIN, MAX_FRAMES, plus MOCK_DIR / CACHE_DIR paths. python config.py prints the settings.
 
 ## In progress
 
@@ -20,7 +21,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 6: Config switch (waiting for go-ahead)
+- Todo Backend 7: Config limits and units (MIN_FOV_ARCMIN, MAX_FOV_ARCMIN; waiting for go-ahead)
 
 ## Decisions made
 
@@ -57,9 +58,13 @@ M1: Mock data generator (preparing: verifying targets first)
 - FOV minimum/maximum limits not enforced yet (Backend 12)
 - config.py has DEFAULT_FOV_DEG (degrees) but FRAME_FORMAT.md uses arcminutes
 - Online name lookup depends on CDS, which is currently down
+- config.py is the single place for settings; other files use import config
+- config.py uses DEFAULT_FOV_ARCMIN (arcminutes) from the start; the old degrees version is not carried over
+- MAX_FRAMES = 50 and RELEASE_NAME = "spherex_qr2" are placeholders, not verified values
 
 ## How to run and test
 
 - python data_mock.py (creates data/mock/mock_00..11.fits with image, FLAGS, VARIANCE)
 - python check_mock.py (prints a summary, including flag counts)
 - python test_processing.py (needs data/mock/ files; saves PNGs in cache/test_png/)
+- python config.py (prints all settings)
