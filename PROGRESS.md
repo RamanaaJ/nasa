@@ -12,6 +12,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 2: targets verified against SIMBAD (Harvard mirror) and targets.py written (J2000 positions + proper motion + position_at_epoch)
 - Todo Backend 3: data_mock.py writes 12 mock FITS files to data/mock/ (moving dot, WCS, DATE-OBS, DETECTOR, WAVE_UM in headers); check_mock.py reads them back
 - Todo Backend 4: data_mock.py now also writes FLAGS (bits 1=bad, 2=cosmic ray, 4=contaminated) and VARIANCE extensions; check_mock.py checks them
+- Todo Backend 5: processing.py with cutout_frame (WCS-based, returns a new frame), stretch_image (linear/sqrt/log + percentile clip) and image_to_png_bytes / frame_to_png; test_processing.py checks it and saves PNGs to cache/test_png/
 
 ## In progress
 
@@ -19,7 +20,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 5: Cutout, stretch, PNG (waiting for go-ahead)
+- Todo Backend 6: Config switch (waiting for go-ahead)
 
 ## Decisions made
 
@@ -34,6 +35,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - Mock flag bit meanings (1/2/4) are invented; real ones come from the SPHEREx documentation later; flags.py must keep the table swappable
 - Mock bad pixels are the same in every frame; cosmic rays are random
 - Defects avoid the dot's rows (y 40-59) so tests stay clear
+- processing.py takes frames in and gives bytes out; it never reads files or downloads anything
+- PNGs are flipped so north is up; small images are enlarged with nearest neighbour (whole-number factor, about 400 px)
+- Cutouts outside the image edge are filled with NaN (image, variance) or 0 (flags); NaN pixels are drawn black
+- Default stretch is sqrt, with 1% / 99.5% percentile clipping (a guess to retune on real data)
 
 ## Known problems
 
@@ -44,8 +49,11 @@ M1: Mock data generator (preparing: verifying targets first)
 - All 12 mock frames share one WCS; real SPHEREx pointings will differ
 - Mock extension names (FLAGS, VARIANCE) and the variance recipe are guesses; real file layout must be inspected (Backend after-data #1)
 - Mock FLAGS/VARIANCE extensions have no WCS of their own
+- No function yet turns the mock FITS files into frames; test_processing.py builds them by hand. A mock get_frames() is needed before the Frames endpoint (Backend 8)
+- FOV minimum/maximum limits not enforced yet (Backend 12)
 
 ## How to run and test
 
 - python data_mock.py (creates data/mock/mock_00..11.fits with image, FLAGS, VARIANCE)
 - python check_mock.py (prints a summary, including flag counts)
+- python test_processing.py (needs data/mock/ files; saves PNGs in cache/test_png/)
