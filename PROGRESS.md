@@ -20,6 +20,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 9 checked live: all test_frames_api.py checks passed (cleanup bug on Windows fixed).
 - Todo Backend 10: coords.py (parse_coordinates, parse_ra, parse_dec, CoordinateError) accepts degrees, 08h55m10.8s, 08:55:10.8 and 08 55 10.8 forms and gives friendly errors; test_coords.py checks it.
 - Todo Backend 11: params.py (validate_request) checks ra, dec, fov, mode, stretch from the URL; main.py uses it; bad values return HTTP 400 with a friendly message; ra/dec accept degrees or sexagesimal via coords.py; test_params.py and test_frames_api.py (Test 6) check it.
+- Todo Backend 12: names.py (resolve_name, resolve_local, NameSearchError, NameResult) turns a name into RA/Dec. Checks the 5 local targets first (offline, spelling-tolerant), then astropy's SkyCoord.from_name; friendly message if the online lookup fails. test_names.py checks it with a fake online service. Not connected to main.py/URL yet.
 
 ## In progress
 
@@ -27,7 +28,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 12: Search by name (waiting for go-ahead)
+- Todo Backend 13: Targets endpoint (waiting for go-ahead)
 
 ## Decisions made
 
@@ -63,6 +64,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - URL settings: ra, dec (text, parsed by coords.py), fov (arcmin, limits from config.py, empty = default), stretch (processing.STRETCH_MODES), mode (normal, difference, stack; only normal is built).
 - Bad URL values give HTTP 400 with {"detail": "..."}; a missing ra/dec still gives FastAPI's 422 until Backend 14.
 - When a new mode is built (Backend 18/19), add its name to READY_MODES in params.py. New stretches (asinh) appear automatically.
+- names.py: names are compared ignoring capitals, spaces, hyphens and apostrophes. Local targets are checked first and never use the internet. Local results are J2000 unless a year is given (then position_at_epoch is used). Online results are whatever the service returns (no proper-motion correction).
+- NameSearchError subclasses ValueError. Name search is not wired into the URL yet; ra/dec are still required by /api/frames. Wiring it in (e.g. a name parameter) needs a go-ahead.
+- The extra spellings for the local targets (e.g. "GJ 699", "eps Ind Ba") come from the names tried in verify_targets\*.py and SIMBAD names in targets.py.
 
 ## Known problems
 
@@ -82,6 +86,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Real data returns 501 until data_irsa.py exists (Backend 25).
 - FOV limits are enforced by params.py (from config.py).
 - A "+" in a URL means a space, so +04d41m36s loses its sign (still positive).
+- Online name lookup (SkyCoord.from_name) is untested against the real service; CDS was down at the last check. names.py cannot tell "unknown name" from "service down", so its message covers both.
 
 ## How to run and test
 
@@ -94,3 +99,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_frames_api.py (with the server running)
 - python test_coords.py (checks coordinate parsing) and python coords.py "08h55m10.8s -07d14m42s" (try one by hand)
 - python test_params.py (checks URL settings)
+- python test_names.py (checks name search, offline) and python names.py "Barnard's Star" (try one by hand)
