@@ -15,7 +15,11 @@ from astropy.coordinates import SkyCoord
 from astropy.nddata import Cutout2D, NoOverlapError
 from PIL import Image
 
-STRETCH_MODES = ("linear", "sqrt", "log")
+STRETCH_MODES = ("linear", "sqrt", "log", "asinh")
+
+# Strength of the asinh stretch. Bigger = faint things get brighter.
+# 10 is a starting guess; retune on real data (TODO after-data #15).
+ASINH_SCALE = 10.0
 
 
 def cutout_frame(frame, ra_deg, dec_deg, fov_arcmin):
@@ -81,6 +85,9 @@ def stretch_image(image, mode="sqrt", low_pct=1.0, high_pct=99.5):
         scaled = np.sqrt(scaled)
     elif mode == "log":
         scaled = np.log10(1.0 + 1000.0 * scaled) / np.log10(1001.0)
+    elif mode == "asinh":
+        # Divide by asinh(ASINH_SCALE) so 0 stays 0 and 1 stays 1
+        scaled = np.arcsinh(ASINH_SCALE * scaled) / np.arcsinh(ASINH_SCALE)
 
     return np.round(scaled * 255).astype(np.uint8)
 

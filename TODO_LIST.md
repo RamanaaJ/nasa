@@ -44,8 +44,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Return clear JSON messages for no images, bad input, slow data and server errors.
 15. [✔] FOV handling (#9) (Part B)
     Make cutout size a parameter and set sensible minimum and maximum limits.
-16. [ ] asinh stretch (new) (Part B)
-        Add "asinh" to the stretch modes. Good for faint things next to bright ones.
+16. [✔] asinh stretch (new) (Part B)
+    Add "asinh" to the stretch modes. Good for faint things next to bright ones.
 17. [ ] Background-level matching (new) (Part B)
         Make the background level the same in every frame, so flicker is not mistaken for movement. Switchable on and off.
 18. [ ] Difference imaging (#13) (Part B)

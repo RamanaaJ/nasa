@@ -24,6 +24,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 13: targets.py has target_list(year=None); main.py has GET /api/targets?year=.. returning the 5 preset targets (id, label, simbad_name, ra/dec at the chosen epoch, J2000 ra/dec, proper motion, note). Optional year moves positions with position_at_epoch(). Bad year gives HTTP 400. test_targets.py checks it (offline part + server part).
 - Todo Backend 14: errors.py holds the message wording; main.py has handlers so every error is JSON {"detail": "friendly sentence"}: missing settings (422), stock 404/405 wording, unexpected crashes (500, details only in the terminal). frames_for() now has a TimeoutError -> 504 branch and a no-images 404 that names the position. test_errors.py checks it (offline part + server part). All checks passed live.
 - Todo Backend 15: FOV handling. params.py rounds fov to 3 decimals (same as the cache key); main.py has GET /api/limits (min, max, default FOV in arcmin, from config.py); config.py comment corrected (limits are enforced). test_fov.py checks cutout sizes at 1, 3, 6, 15 and 30 arcmin, the limits and rounding (offline part + server part).
+- Todo Backend 16: processing.py has an "asinh" stretch (STRETCH_MODES now linear, sqrt, log, asinh; strength ASINH_SCALE = 10). params.py and the /docs help pick it up automatically, so stretch=asinh works in the URL. test_stretch.py checks it (offline part + server part).
 
 ## In progress
 
@@ -31,7 +32,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 16: asinh stretch (waiting for go-ahead)
+- Todo Backend 17: Background-level matching (waiting for go-ahead)
 
 ## Decisions made
 
@@ -77,6 +78,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Real data code (data_irsa.py) must raise TimeoutError for a slow download so frames_for() can turn it into HTTP 504.
 - FOV is rounded to 3 decimals in params.parse_fov (cache.FOV_DECIMALS), so the cache key and the cutout always match. The range check uses the unrounded value.
 - /api/limits is the single source for the page's FOV control (min, max, default in arcmin, all from config.py).
+- asinh stretch: after the percentile clip, scaled = arcsinh(ASINH_SCALE \* x) / arcsinh(ASINH_SCALE). ASINH_SCALE = 10 is a guess, to retune on real data (after-data #15, #16). The default stretch stays sqrt.
 
 ## Known problems
 
@@ -122,3 +124,4 @@ M1: Mock data generator (preparing: verifying targets first)
   python test_errors.py (offline part always; server part if uvicorn is running)
 - First-time setup in a fresh clone: py -3.13 -m venv venv, .\venv\Scripts\Activate.ps1, pip install -r requirements.txt, python data_mock.py, python cache.py clear
 - python test_fov.py (cutout sizes and limits; server part if uvicorn is running)
+- python test_stretch.py (stretch modes; server part if uvicorn is running)
