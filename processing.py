@@ -16,6 +16,7 @@
 # A "frame" is a dictionary described in FRAME_FORMAT.md.
 
 import io
+import math
 import warnings
 from datetime import timedelta
 
@@ -565,3 +566,40 @@ def rgb_to_png_bytes(rgb, target_size=400):
     buffer = io.BytesIO()
     picture.save(buffer, format="PNG")
     return buffer.getvalue()
+
+# ---------- Backend 22: where a known position lands in each frame ----------
+
+def locate_in_frames(frames, positions):
+    """Find where sky positions fall in frames. One position per frame.
+
+    positions: list of (ra_deg, dec_deg), same length as frames.
+    Returns one dictionary per frame:
+      index, obs_time, ra_deg, dec_deg   (what we were given)
+      x, y          pixel position (counted from 0, y from the bottom row),
+                    or None if the frame has no WCS
+      png_x, png_y  the same spot in the PNG (see pixel_to_png_position)
+      inside        True if the spot lies within the frame's pixels
+    A spot outside the frame still gets x, y (they may be negative or
+    bigger than the image) but inside=False.
+    The original frames are not changed.
+    """
+    if len(frames) != len(positions):
+        raise ValueError("There must be exactly one position for each frame.")
+    result = []
+    for i, (frame, (ra, dec)) in enumerate(zip(frames, positions)):
+        entry = {"index": i, "obs_time": frame.get("obs_time"),
+                 "ra_deg": float(ra), "dec_deg": float(dec),
+                 "x": None, "y": None, "png_x": None, "png_y": None, "inside": False}
+        result.append(entry)
+        wcs = frame.get("wcs")
+        if wcs is None:
+            continue
+        height, width = frame["image"].shape
+        x, y = wcs.wcs_world2pix(ra, dec, 0)          # 0 = pixels counted from 0
+        x, y = float(x), float(y)
+        if not (math.isfinite(x) and math.isfinite(y)):
+            continue
+        entry["x"], entry["y"] = x, y
+        entry["png_x"], entry["png_y"] = pixel_to_png_position(x, y, height, width)
+        entry["inside"] = (-0.5 <= x < width - 0.5) and (-0.5 <= y < height - 0.5)
+    return result

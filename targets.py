@@ -10,6 +10,7 @@
 # This file only holds data and one tiny helper. It never downloads anything.
 
 import math
+from datetime import datetime, timezone
 
 TARGETS = {
     "wise0855": {
@@ -103,6 +104,33 @@ def target_list(year=None):
             "note": t["note"],
         })
     return items
+
+def decimal_year(when):
+    """A datetime as a year number, e.g. 2026-07-02 12:00 -> 2026.5.
+
+    Times with a timezone are converted to UTC first.
+    """
+    if when.tzinfo is not None:
+        when = when.astimezone(timezone.utc).replace(tzinfo=None)
+    start = datetime(when.year, 1, 1)
+    end = datetime(when.year + 1, 1, 1)
+    return when.year + (when - start) / (end - start)
+
+
+def expected_positions(target_id, times):
+    """Where a target should be at each of the given datetimes.
+
+    Returns a list of (ra_deg, dec_deg), one per time, using
+    position_at_epoch() (straight-line proper motion, no parallax).
+    Raises ValueError for an unknown target id.
+    """
+    if target_id not in TARGETS:
+        raise ValueError(f"Unknown target '{target_id}'. Use one of: {', '.join(TARGETS)}.")
+    result = []
+    for when in times:
+        ra, dec = position_at_epoch(target_id, decimal_year(when))
+        result.append((ra % 360.0, dec))
+    return result
 
 if __name__ == "__main__":
     # Quick self-test: run  python targets.py

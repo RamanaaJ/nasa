@@ -35,6 +35,7 @@ import cache
 import config
 import data_mock
 import errors
+import names
 import params
 import processing
 import targets
@@ -221,6 +222,44 @@ def frame_image(
         grey = processing.stretch_image(frames[index]["image"], mode=p.stretch, limits=limits)
     return Response(content=processing.image_to_png_bytes(grey), media_type="image/png")
 
+TARGET_HELP = ("Which preset target to follow: its id or name, for example wise0855 or "
+               "'Barnard's Star'. Only the 5 built-in targets work here.")
+
+
+@app.get("/api/expected-path")
+def expected_path(
+    target: str = Query(..., description=TARGET_HELP),
+    ra: str = Query(..., description=RA_HELP),
+    dec: str = Query(..., description=DEC_HELP),
+    fov: str | None = Query(None, description=FOV_HELP),
+    mode: str | None = Query(None, description=MODE_HELP),
+    combine: str | None = Query(None, description=COMBINE_HELP),
+    group: str | None = Query(None, description=GROUP_HELP),
+):
+    """Where the target should be in each frame, from its proper motion.
+
+    Use the same ra, dec, fov, mode, combine and group as /api/frames, so
+    entry number N here belongs to frame number N there.
+    """
+    p = check_request(ra, dec, fov, None, mode, None, None, combine, group)
+    found = names.resolve_local(target)          # tolerant spelling, works offline
+    if found is None:
+        labels = ", ".join(t["label"] for t in targets.TARGETS.values())
+        raise HTTPException(status_code=400,
+                            detail=f"'{target}' is not one of the built-in targets ({labels}).")
+    frames = frames_for(p)
+    if p.mode == "stack":
+        frames = stack_for(frames, p)            # same frame numbers as /api/frames
+    positions = targets.expected_positions(found.target_id, [f["obs_time"] for f in frames])
+    path = processing.locate_in_frames(frames, positions)
+    for entry in path:
+        entry["obs_time"] = entry["obs_time"].isoformat()
+    return {
+        "target": {"id": found.target_id, "label": found.label},
+        "mode": p.mode,
+        "frame_count": len(frames),
+        "path": path,
+    }
 
 @app.get("/api/targets")
 def list_targets(year: str | None = Query(None, description=YEAR_HELP)):

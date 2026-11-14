@@ -56,8 +56,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Work out the dot's pixel position in each frame so the page can draw a line through them.
 21. [✔] Colour picture from 3 wavelengths (new) (Part B)
     Use three bands as red, green and blue to make one colour image. Test on mock data first.
-22. [ ] Expected-path function (new) (Part E)
-        Use position_at_epoch() to return where a known star should be on each frame's date. Add a small endpoint for it (Part C).
+22. [✔] Expected-path function (new) (Part E)
+    Use position_at_epoch() to return where a known star should be on each frame's date. Add a small endpoint for it (Part C).
 23. [ ] Practice mock files (new) (Part A)
         A second mock set with several dots moving at different speeds, for the practice game. Keep the answers in a separate file.
 24. [ ] Practice game answer check (new) (Part C)
