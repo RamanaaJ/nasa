@@ -11,6 +11,8 @@
 #
 # Backend 11: every setting in the address is checked by params.py first.
 # A bad value gives a clear message (HTTP 400) instead of a crash.
+# Backend 19: mode=stack adds frames together, so the list can be shorter
+# than the number of raw images (for example one frame per detector).
 #
 # main.py only connects the other files. The real work is done elsewhere:
 #   params.py -> checks the address,  data_mock.py -> frames,
@@ -18,21 +20,21 @@
 
 from pathlib import Path
 from urllib.parse import urlencode
-import logging                                            # NEW
+import logging
 import math
 
 import numpy as np
 from astropy.wcs.utils import proj_plane_pixel_scales
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.exceptions import RequestValidationError     # NEW
-from fastapi.responses import JSONResponse, Response      # NEW: JSONResponse added
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException   # NEW
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import cache
 import config
 import data_mock
-import errors                                             # NEW
+import errors
 import params
 import processing
 import targets
@@ -65,6 +67,7 @@ async def handle_unexpected_error(request, exc):
     logger.error("Unexpected error on %s", request.url.path, exc_info=exc)
     return JSONResponse(status_code=500, content={"detail": errors.SERVER_ERROR_MESSAGE})
 
+
 STATIC_DIR = Path(__file__).parent / "static"
 
 # Text shown in the /docs page for the settings
@@ -76,11 +79,14 @@ MODE_HELP = "How frames are combined: " + ", ".join(params.READY_MODES) + f". De
 YEAR_HELP = "Optional year, for example 2026.0. Positions are moved to that year using proper motion. Empty = J2000."
 MATCH_HELP = "Background matching: on or off. Default off. On = every frame gets the same background level and brightness scale."
 REF_HELP = "Only for mode=difference: which frame is subtracted: " + ", ".join(processing.DIFFERENCE_REFERENCES) + f". Default {params.DEFAULT_REF}."
+COMBINE_HELP = "Only for mode=stack: how frames are combined: " + ", ".join(processing.STACK_COMBINE) + f". Default {params.DEFAULT_COMBINE}."
+GROUP_HELP = "Only for mode=stack: which frames are stacked together: " + ", ".join(processing.STACK_GROUPS) + f". Default {params.DEFAULT_GROUP}."
 
-def check_request(ra, dec, fov, stretch, mode, match=None, ref=None):
+
+def check_request(ra, dec, fov, stretch, mode, match=None, ref=None, combine=None, group=None):
     """Check the settings from the address. Bad input becomes a clear HTTP 400."""
     try:
-        return params.validate_request(ra, dec, fov, stretch, mode, match, ref)
+        return params.validate_request(ra, dec, fov, stretch, mode, match, ref, combine, group)
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
 
@@ -96,14 +102,22 @@ def frames_for(p):
         frames = cache.get_or_load(p.ra, p.dec, p.fov, data_mock.get_frames)
     except FileNotFoundError as err:        # mock files were never created
         raise HTTPException(status_code=503, detail=str(err))
-    except TimeoutError:                    # NEW: a slow data source (used by real data later)
+    except TimeoutError:                    # a slow data source (used by real data later)
         raise HTTPException(status_code=504, detail=errors.TIMEOUT_MESSAGE)
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     if not frames:
         raise HTTPException(status_code=404,
-                            detail=errors.no_images_message(p.ra, p.dec, config.USE_MOCK))   # NEW
+                            detail=errors.no_images_message(p.ra, p.dec, config.USE_MOCK))
     return frames
+
+
+def stack_for(frames, p):
+    """Backend 19: add or average the frames (mode=stack). Bad input becomes HTTP 400."""
+    try:
+        return processing.stack_frames(frames, p.combine, p.group)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
 
 def describe_frame(index, frame, p):
@@ -119,13 +133,14 @@ def describe_frame(index, frame, p):
     # The link repeats every setting, in plain numbers, so it works on its own
     query = urlencode({"ra": p.ra, "dec": p.dec, "fov": p.fov, "mode": p.mode,
                        "stretch": p.stretch, "match": "on" if p.match else "off",
-                       "ref": p.ref})
+                       "ref": p.ref, "combine": p.combine, "group": p.group})
     return {
         "index": index,
         "image_url": f"/api/frames/{index}/image?{query}",
         "obs_time": frame["obs_time"].isoformat(),
-        "detector": int(frame["detector"]),
+        "detector": int(frame["detector"]),       # 0 = several detectors stacked together
         "wavelength_um": float(frame["wavelength_um"]),
+        "n_stacked": int(frame.get("n_stacked", 1)),
         "width_px": int(width),
         "height_px": int(height),
         "pixel_scale_arcsec": pixel_scale_arcsec,
@@ -143,10 +158,14 @@ def list_frames(
     mode: str | None = Query(None, description=MODE_HELP),
     match: str | None = Query(None, description=MATCH_HELP),
     ref: str | None = Query(None, description=REF_HELP),
+    combine: str | None = Query(None, description=COMBINE_HELP),
+    group: str | None = Query(None, description=GROUP_HELP),
 ):
     """The frame list: one entry per image, sorted by date."""
-    p = check_request(ra, dec, fov, stretch, mode, match, ref)
+    p = check_request(ra, dec, fov, stretch, mode, match, ref, combine, group)
     frames = frames_for(p)
+    if p.mode == "stack":
+        frames = stack_for(frames, p)           # fewer, less noisy frames
     return {
         "source": cache.current_release(),
         "ra_deg": p.ra,
@@ -156,9 +175,12 @@ def list_frames(
         "mode": p.mode,
         "match": p.match,
         "ref": p.ref,
+        "combine": p.combine,
+        "group": p.group,
         "frame_count": len(frames),
         "frames": [describe_frame(i, f, p) for i, f in enumerate(frames)],
     }
+
 
 @app.get("/api/frames/{index}/image")
 def frame_image(
@@ -170,15 +192,19 @@ def frame_image(
     mode: str | None = Query(None, description=MODE_HELP),
     match: str | None = Query(None, description=MATCH_HELP),
     ref: str | None = Query(None, description=REF_HELP),
+    combine: str | None = Query(None, description=COMBINE_HELP),
+    group: str | None = Query(None, description=GROUP_HELP),
 ):
     """One frame as a PNG picture. `index` is the number from the frame list."""
-    p = check_request(ra, dec, fov, stretch, mode, match, ref)
+    p = check_request(ra, dec, fov, stretch, mode, match, ref, combine, group)
     frames = frames_for(p)                      # instant when it is already cached
+    if p.match:
+        frames = processing.match_backgrounds(frames)
+    if p.mode == "stack":
+        frames = stack_for(frames, p)           # backgrounds are matched first, then stacked
     if index < 0 or index >= len(frames):
         raise HTTPException(status_code=404,
                             detail=f"There is no frame {index}. This request has {len(frames)} frames.")
-    if p.match:
-        frames = processing.match_backgrounds(frames)
 
     if p.mode == "difference":
         # Subtract the reference frame, then draw with one shared scale:
@@ -190,6 +216,7 @@ def frame_image(
         limit = processing.shared_difference_limit(frames)
         grey = processing.stretch_difference(frames[index]["image"], mode=p.stretch, limit=limit)
     else:
+        # normal and stack
         limits = processing.shared_limits(frames) if p.match else None
         grey = processing.stretch_image(frames[index]["image"], mode=p.stretch, limits=limits)
     return Response(content=processing.image_to_png_bytes(grey), media_type="image/png")
@@ -215,6 +242,7 @@ def list_targets(year: str | None = Query(None, description=YEAR_HELP)):
         "targets": items,
     }
 
+
 @app.get("/api/limits")
 def get_limits():
     """The field-of-view limits, so the page can build its FOV control."""
@@ -225,6 +253,7 @@ def get_limits():
             "default": config.DEFAULT_FOV_ARCMIN,
         },
     }
+
 
 # Serve the web page files. This MUST stay last, because it matches every other address.
 STATIC_DIR.mkdir(exist_ok=True)

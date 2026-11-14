@@ -6,10 +6,13 @@
 #   4. frame_to_png()    does all three in one call
 #   5. match_backgrounds() / shared_limits()   (Backend 17) same background and
 #      same brightness scale in every frame
+#   6. difference_frames() / stretch_difference()   (Backend 18)
+#   7. stack_frames()    (Backend 19) add or average frames to cut noise
 # This file never downloads data and never reads files.
 # A "frame" is a dictionary described in FRAME_FORMAT.md.
 
 import io
+from datetime import timedelta
 
 import numpy as np
 from astropy import units as u
@@ -99,6 +102,7 @@ def stretch_image(image, mode="sqrt", low_pct=1.0, high_pct=99.5, limits=None):
 
     return np.round(scaled * 255).astype(np.uint8)
 
+
 def estimate_background(image):
     """The background level of one image: the median of its finite pixels.
 
@@ -177,6 +181,7 @@ def frame_to_png(frame, ra_deg, dec_deg, fov_arcmin, stretch="sqrt"):
     patch = cutout_frame(frame, ra_deg, dec_deg, fov_arcmin)
     grey = stretch_image(patch["image"], mode=stretch)
     return image_to_png_bytes(grey)
+
 
 # ---------- Backend 18: difference imaging ----------
 
@@ -266,3 +271,93 @@ def stretch_difference(image, mode="sqrt", limit=None):
     grey = np.round((signed + 1.0) / 2.0 * 255).astype(np.uint8)
     grey[~finite] = 0
     return grey
+
+
+# ---------- Backend 19: stacking ----------
+
+# combine: "mean" = average the frames, "sum" = plain addition
+STACK_COMBINE = ("mean", "sum")
+# group: "detector" = one stack per detector, "all" = one stack of everything
+STACK_GROUPS = ("detector", "all")
+
+
+def _stack_one_group(group, combine, detector_value):
+    """Combine the frames of ONE group into one new frame."""
+    n = len(group)
+    cube = np.stack([f["image"] for f in group])          # shape (n, height, width)
+    finite = np.isfinite(cube)
+    count = finite.sum(axis=0)                            # usable frames per pixel
+    total = np.where(finite, cube, 0.0).sum(axis=0)
+    has_data = count > 0
+
+    # A pixel with no usable value in any frame stays NaN
+    image = np.full(total.shape, np.nan)
+    if combine == "mean":
+        image[has_data] = total[has_data] / count[has_data]
+    else:
+        image[has_data] = total[has_data]
+
+    new_frame = dict(group[0])                            # copy, keeps the first frame's WCS
+    new_frame["image"] = image
+    new_frame["detector"] = detector_value
+    new_frame["n_stacked"] = n
+    new_frame["wavelength_um"] = float(np.mean([f["wavelength_um"] for f in group]))
+
+    # Mean observation time: the first time plus the average gap
+    t0 = group[0]["obs_time"]
+    new_frame["obs_time"] = t0 + sum((f["obs_time"] - t0 for f in group), timedelta()) / n
+
+    # Noise: variances of added images add up. A mean divides by count squared.
+    if all(f.get("variance") is not None for f in group):
+        vcube = np.stack([f["variance"] for f in group])
+        vtotal = np.where(np.isfinite(vcube), vcube, 0.0).sum(axis=0)
+        variance = np.full(vtotal.shape, np.nan)
+        if combine == "mean":
+            variance[has_data] = vtotal[has_data] / count[has_data] ** 2
+        else:
+            variance[has_data] = vtotal[has_data]
+        new_frame["variance"] = variance
+
+    # A pixel is flagged if it was flagged in ANY of the frames
+    if all(f.get("flags") is not None for f in group):
+        new_frame["flags"] = np.bitwise_or.reduce(np.stack([f["flags"] for f in group]), axis=0)
+
+    names = [str(f.get("source_file", "?")) for f in group]
+    shown = ", ".join(names[:3]) + (", ..." if len(names) > 3 else "")
+    new_frame["source_file"] = f"stack of {n}: {shown}"
+    return new_frame
+
+
+def stack_frames(frames, combine="mean", group="detector"):
+    """Return NEW frames made by adding or averaging the given frames.
+
+    combine: "mean" (average) or "sum" (plain addition).
+    group:   "detector" = one stacked frame for each detector number,
+             "all" = a single stacked frame from every frame (detector = 0).
+    Each frame needs image, obs_time and wavelength_um (see FRAME_FORMAT.md).
+    The result is sorted by (mean) observation time. NaN pixels are skipped,
+    so a pixel that is NaN in only some frames still gets a value from the
+    others (a sum of fewer frames is therefore a little smaller).
+    n_stacked says how many frames went in. The wavelength is the mean of the
+    inputs. Variances are combined, flags are OR-ed.
+    All frames must have the same pixel size. The originals are not changed.
+    """
+    if combine not in STACK_COMBINE:
+        raise ValueError(f"Unknown combine '{combine}'. Use one of {STACK_COMBINE}.")
+    if group not in STACK_GROUPS:
+        raise ValueError(f"Unknown group '{group}'. Use one of {STACK_GROUPS}.")
+    if not frames:
+        return []
+    shape = frames[0]["image"].shape
+    if any(f["image"].shape != shape for f in frames):
+        raise ValueError("The frames have different sizes, so they cannot be stacked.")
+
+    groups = {}
+    for frame in frames:
+        key = frame.get("detector") if group == "detector" else "all"
+        groups.setdefault(key, []).append(frame)
+
+    result = [_stack_one_group(members, combine, key if group == "detector" else 0)
+              for key, members in groups.items()]
+    result.sort(key=lambda f: f["obs_time"])
+    return result

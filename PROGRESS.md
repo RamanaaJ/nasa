@@ -27,6 +27,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 16: processing.py has an "asinh" stretch (STRETCH_MODES now linear, sqrt, log, asinh; strength ASINH_SCALE = 10). params.py and the /docs help pick it up automatically, so stretch=asinh works in the URL. test_stretch.py checks it (offline part + server part).
 - Todo Backend 17: background-level matching. processing.py has estimate_background (median), match_backgrounds (shifts every frame to a common level, returns new frames), shared_limits (one black/white point pair for all frames) and stretch_image(limits=...). params.py has parse_match (match=on/off, default off); main.py passes match to /api/frames and /api/frames/{index}/image and puts match=on/off in the image links. test_background.py checks it (offline parts + server part).
 - Todo Backend 18: difference imaging. processing.py has difference_frames (subtract the first or the previous frame, returns new frames), shared_difference_limit and stretch_difference (grey = no change, white = brighter, black = dimmer, one shared scale). params.py has parse_ref (ref=first|previous, default first) and "difference" is now in READY_MODES. main.py passes ref to /api/frames and /api/frames/{index}/image and puts ref in the image links. Old tests that used mode=difference as "not built yet" now use mode=stack. test_difference.py checks it (offline parts + server part).
+- Todo Backend 19: stacking. processing.py has stack_frames (mean or sum, grouped by detector or all frames together; returns new frames sorted by mean time with n_stacked, mean wavelength, combined variance and OR-ed flags). params.py has parse_combine (combine=mean|sum, default mean) and parse_group (group=detector|all, default detector), and "stack" is now in READY_MODES. main.py passes combine and group to /api/frames and /api/frames/{index}/image, puts them in the image links, adds n_stacked to each frame, and in stack mode the frame list is the stacked list (6 frames on the mock data with group=detector). Old tests that used mode=stack as "not built yet" were changed (test_params.py, test_frames_api.py, test_difference.py). test_stack.py checks it (offline parts + server part).
 
 ## In progress
 
@@ -34,7 +35,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 19: Stacking and adding (waiting for go-ahead) and In progress to (nothing)
+- Todo Backend 20: Motion trail data (waiting for go-ahead)
 
 ## Decisions made
 
@@ -67,9 +68,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - Run the server with: uvicorn main:app --reload
 - coords.py: plain numbers are degrees; sexagesimal RA without a unit letter is hours; Dec is always degrees. Pure Python, no astropy.
 - CoordinateError subclasses ValueError. Name search (Backend 12) is a separate step.
-- URL settings: ra, dec (text, parsed by coords.py), fov (arcmin, limits from config.py, empty = default), stretch (processing.STRETCH_MODES), mode (normal, difference, stack; only normal is built).
+- URL settings: ra, dec (text, parsed by coords.py), fov (arcmin, limits from config.py, empty = default), stretch (processing.STRETCH_MODES), mode (normal, difference, stack), match, ref, combine, group.
 - Bad URL values give HTTP 400 with {"detail": "..."}; a missing ra/dec gives 422 with a friendly {"detail": "..."} (Backend 14).
-- When a new mode is built (Backend 18/19), add its name to READY_MODES in params.py. New stretches (asinh) appear automatically.
+- When a new mode is built, add its name to READY_MODES in params.py. New stretches (asinh) appear automatically. All three modes (normal, difference, stack) are now built, so no test can use a mode as "not built yet" any more.
 - names.py: names are compared ignoring capitals, spaces, hyphens and apostrophes. Local targets are checked first and never use the internet. Local results are J2000 unless a year is given (then position_at_epoch is used). Online results are whatever the service returns (no proper-motion correction).
 - NameSearchError subclasses ValueError. Name search is not wired into the URL yet; ra/dec are still required by /api/frames. Wiring it in (e.g. a name parameter) needs a go-ahead.
 - The extra spellings for the local targets (e.g. "GJ 699", "eps Ind Ba") come from the names tried in verify_targets\*.py and SIMBAD names in targets.py.
@@ -87,7 +88,11 @@ M1: Mock data generator (preparing: verifying targets first)
 - Difference mode: mode=difference plus ref=first|previous (default first). Frame 0 is always blank (nothing to subtract). If match=on, backgrounds are matched first, then frames are subtracted.
 - Difference pictures use a symmetric scale: 0 is mid grey, +limit white, -limit black. The limit is the 99.5th percentile of |difference| over all frames (all-zero frames skipped). The chosen stretch curve is applied to |difference| and the sign is kept. NaN pixels are black.
 - Difference is computed after the cache, so cache keys are unchanged. Variances add and flags are OR-ed (not used by the picture yet).
-- When a new mode is built, remember to update the old "not built yet" tests (stack is next).
+- Stack mode: mode=stack plus combine=mean|sum (default mean) and group=detector|all (default detector). Stacking is done after the cache, so cache keys are unchanged. If match=on, backgrounds are matched first, then frames are stacked, then one shared brightness scale is used for the stacked frames.
+- In stack mode the frame list is the STACKED list, so frame numbers refer to stacked frames (6 on the mock data with group=detector, 1 with group=all). Normal and difference modes still list every raw frame.
+- A stacked frame keeps the first frame's WCS and other keys, and gets: obs_time = mean time, wavelength_um = mean wavelength, detector = the detector number (0 when group=all, meaning "several detectors"), n_stacked = number of frames added, variance combined (mean: sum of variances / n^2; sum: sum of variances), flags OR-ed, source_file = "stack of N: ...". /api/frames shows n_stacked for every frame (1 for unstacked frames).
+- NaN pixels are skipped when stacking; a pixel that is NaN in every frame stays NaN.
+- Stacked frames are sorted by their mean observation time.
 
 ## Known problems
 
@@ -108,9 +113,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - FOV limits are enforced by params.py (from config.py).
 - A "+" in a URL means a space, so +04d41m36s loses its sign (still positive).
 - Online name lookup (SkyCoord.from_name) is untested against the real service; CDS was down at the last check. names.py cannot tell "unknown name" from "service down", so its message covers both.
+- The name search (names.py, Backend 12) is still not connected to the URL.
 - With mock data only the WISE 0855 preset (at its year-2026 position) finds frames; the other 4 presets give 404 ("No images cover this sky position") because the mock sky covers only that patch. This is expected until real data (Backend 25).
 - Positions at a given year use straight-line proper motion only (no parallax); fine for centring a cutout.
-- The name search (names.py, Backend 12) is still not connected to the URL.
 - The 504 (slow data) branch is untested against real data; nothing raises TimeoutError yet. Revisit in after-data #10 (Robust downloading).
 - The 500 handler was not triggered in the live test (optional step 5 in the Backend 14 instructions); it is only checked by reading the code.
 - Environment: Python 3.15 could not install PyYAML on Windows (no C++ compiler). The project uses Python 3.13; the venv was rebuilt with `py -3.13 -m venv venv`.
@@ -123,6 +128,13 @@ M1: Mock data generator (preparing: verifying targets first)
 - Difference imaging subtracts pixel by pixel and assumes every frame has the same pixel grid. The mock frames share one WCS, so this works. Real SPHEREx pointings will differ, so real frames probably need re-aligning (reprojecting) onto one grid first; frames of different sizes give HTTP 400. Revisit in after-data #11 (Edge cases).
 - In difference mode, frame 0 is a flat grey picture by design.
 - Real bands/detectors differ in brightness scale, so subtracting frames from different bands may show large residuals on bright stars. Retune in after-data #15.
+- Stacking has the same pixel-grid assumption as difference imaging: frames of different sizes give HTTP 400, and same-sized frames with different WCS would be added wrongly. Real frames probably need re-aligning first (after-data #11).
+- Stacking does not use flags to skip bad pixels (real flag bits are not known yet), and there is no outlier rejection: in a mean of 2 frames a cosmic ray is only halved, not removed. Revisit with real flags (after-data #7, #17) and maybe a median option.
+- A moving object is smeared into several dots in a stack, because frames from different dates are added. That is expected; stacking is meant for faint fixed sources. Use difference mode to find movers.
+- Stacking frames from different bands (and group=all especially) mixes wavelengths; the stacked wavelength_um is only the mean. For real data, stack within one band or detector.
+- Sum and mean give the SAME picture, because the brightness stretch rescales every picture (a sum is just the mean times N). They differ only in the numbers (flux, variance), which matter later for spectra and the hover readout.
+- A sum of a pixel that is NaN in some frames adds fewer frames, so it is a little smaller than its neighbours (only matters at image edges).
+- In stack mode the frame numbers differ from normal mode, so a page must reload the frame list when the mode changes.
 
 ## How to run and test
 
@@ -143,3 +155,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_stretch.py (stretch modes; server part if uvicorn is running)
 - python test_background.py (background matching; server part if uvicorn is running)
 - python test_difference.py (difference imaging; server part if uvicorn is running)
+- python test_stack.py (stacking; server part if uvicorn is running)

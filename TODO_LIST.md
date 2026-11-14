@@ -50,8 +50,8 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Make the background level the same in every frame, so flicker is not mistaken for movement. Switchable on and off.
 18. [✔] Difference imaging (#13) (Part B)
     Support "subtract first frame" and "subtract previous frame" on mock data.
-19. [ ] Stacking and adding (#14, added) (Part B)
-        Sum or average frames per detector to cut noise. Also offer a plain "add" option.
+19. [✔] Stacking and adding (#14, added) (Part B)
+    Sum or average frames per detector to cut noise. Also offer a plain "add" option.
 20. [ ] Motion trail data (new) (Part B)
         Work out the dot's pixel position in each frame so the page can draw a line through them.
 21. [ ] Colour picture from 3 wavelengths (new) (Part B)

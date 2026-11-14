@@ -118,7 +118,7 @@ check("ref=PREVIOUS (capitals)", params.validate_request("10", "0", ref="PREVIOU
 check("empty ref means first", params.validate_request("10", "0", ref="").ref == "first")
 check("ref=banana is refused", fails(params.validate_request, "10", "0", ref="banana"))
 check("mode=difference is accepted", params.validate_request("10", "0", mode="difference").mode == "difference")
-check("mode=stack is still not built", fails(params.validate_request, "10", "0", mode="stack"))
+check("mode=stack is accepted", params.validate_request("10", "0", mode="stack").mode == "stack")
 check("old six-setting calls still work", params.validate_request("10", "0", "6", "log", "normal", "on").match is True)
 
 print("\n--- Part 5: the live server ---")
