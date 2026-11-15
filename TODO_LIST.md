@@ -74,12 +74,12 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Write flags.py that decodes bits using a table you can swap in once real bit meanings are loaded.
 30. [✔] "Is it real?" check (new) (Part F)
     Compare neighbouring frames. Warn when the detector or wavelength changed, or when flagged pixels sit near the dot.
-31. [ ] Spectrum function (#15) (Part F)
-        Write spectra.py that builds brightness vs wavelength from mock frames at one pixel.
-32. [ ] Spectrum comparison (new) (Part F)
-        Let spectra.py return two spectra (the mover and a fixed star) so they can be plotted together.
-33. [ ] Overlay catalog function (#17) (Part F)
-        Write overlays.py that fetches Gaia/WISE sources with astroquery and returns pixel positions.
+31. [✔] Spectrum function (#15) (Part F)
+    Write spectra.py that builds brightness vs wavelength from mock frames at one pixel.
+32. [✔] Spectrum comparison (new) (Part F)
+    Let spectra.py return two spectra (the mover and a fixed star) so they can be plotted together.
+33. [✔] Overlay catalog function (#17) (Part F)
+    Write overlays.py that fetches Gaia/WISE sources with astroquery and returns pixel positions.
 34. [ ] GIF export (#19) (Part C)
         Add an endpoint or helper that bundles the frames into an animated GIF with Pillow.
 35. [ ] Export a find as CSV (new) (Part C)

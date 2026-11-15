@@ -39,6 +39,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 28: skip mostly-bad frames. quality.py has bad_fraction (share of pixels with data that carry a "bad" flag; NaN pixels not counted; no flags = 0.0; no data at all = 1.0) and drop_mostly_bad(frames, max_fraction=MAX_BAD_FRACTION) which returns (kept, dropped). A frame is dropped when its fraction is GREATER than MAX_BAD_FRACTION (0.5, a guess). Not connected to main.py. test_quality.py checks it (offline parts + mock-data part).
 - Todo Backend 29: flags.py with swappable flag tables (bit number -> name, description, category bad/contaminated/info). MOCK_TABLE (our own bits) and REAL_TABLE_DRAFT (22 real names/descriptions from real_query_report.txt; categories are my guesses). Functions: validate_table, active_table (follows config.USE_MOCK), mask_for, known_mask, decode_value, category_pixels, count_flags, frame_summary, legend. Not connected to main.py. test_flags.py checks it.
 - Todo Backend 30: "Is it real?" check. realcheck.py has check_frames(frames, positions, radius, wave_fraction): per frame a status (red = bad/contaminated flags within NEAR_RADIUS_PIX = 3 of the dot, yellow = detector or wavelength changed from the previous frame, green = nothing found, grey = flags not checkable) plus reasons. WAVELENGTH_CHANGE_FRACTION = 0.05 (guess). Not connected to main.py. test_realcheck.py checks it.
+- Todo Backend 31: spectrum function. spectra.py has spectrum_along_path (one position per frame), spectrum_at_pixel (same pixel in every frame) and spectrum_at_sky (RA/Dec, each frame's own WCS finds the pixel). A reading is the mean of a (2\*half_size+1) square of pixels, leaving out NaN pixels and pixels flagged "bad"; it has flux, error (from VARIANCE), n_pixels, usable and a reason. Results are sorted by wavelength. Not connected to main.py. test_spectra.py checks it. All parts passed live (mock star about 55 in every frame, mock dot about 135).
+- Todo Backend 32: spectrum comparison. spectra.py has compare_spectra(frames, mover_positions, star_ra, star_dec, half_size, normalize) returning {mover, star, normalized, scales}. normalize=True divides each spectrum by its own median. Not connected to main.py. test_spectra.py checks it. One check in the first run failed because my test was wrong (the mock dot moves only about 1 pixel per frame, so a 3x3 square kept catching it); the check was rewritten to read a single pixel in frame 0 and frame 11.
+- Todo Backend 33: overlay catalog function. overlays.py has CATALOGS (gaia, wise: label, epoch, column names), fetch_sources (astroquery; a fetcher can be passed in for tests), normalize_rows, position_at_year (proper motion to the frame's date), place_sources (pixel path per frame, brightest MAX_SOURCES = 300 kept) and get_overlay. OverlayError is a ValueError. Not connected to main.py. test_overlays.py checks it offline with a fake catalogue. Real queries checked by hand on 2026-11-15 with python overlays.py (WISE 0855 position, 6 arcmin): Gaia gave 417 rows, AllWISE gave 777 rows, and every column in CATALOGS exists in both answers.
 
 ## In progress
 
@@ -46,7 +49,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-Todo Backend 31: Spectrum function (waiting for go-ahead)
+Todo Backend 34: GIF export (waiting for go-ahead)
 
 ## Decisions made
 
@@ -129,6 +132,12 @@ Todo Backend 31: Spectrum function (waiting for go-ahead)
 - Flag tables are keyed by bit NUMBER; the value is 1 << bit. The real table assumes bit n = 2\*\*n (still unchecked). Real categories (bad/contaminated/info) are my guesses: replace them with the IRSA Explanatory Supplement table (after-data #7, #17).
 - Frame quality: only pixels with data are counted; the NaN edge of a cutout is "no data", not "bad data". Cosmic rays count as "bad" in the mock table.
 - "Is it real?" colours: red > yellow > green; grey = could not check. Positions are passed in (find_moving_dot or locate_in_frames), never computed inside realcheck.py. "Near" uses image[y, x] with y counted from the bottom row, like the rest of the project.
+- Spectrum reading = mean of a small square of pixels, leaving out NaN and "bad"-flagged pixels (contaminated pixels are kept). Spectra are sorted by wavelength. No background subtraction yet.
+- compare_spectra takes the mover's pixel positions per frame (find_moving_dot output works) and the fixed star's RA/Dec. normalize divides by the median flux.
+- Overlay sources are moved to each frame's date with straight-line proper motion (no parallax). A source with no proper motion is not moved (pm_known = False). Sources outside every frame are dropped.
+- The overlay search radius = cutout half-diagonal + SEARCH_MARGIN_ARCMIN (3, a guess), so stars that move into the picture are found.
+- overlays.fetch_sources takes a replaceable "fetcher", so everything except the online call is tested offline.
+- Verified on 2026-11-15 by a real query: Gaia (astroquery.gaia, cone_search_async) has the columns source_id, ra, dec, pmra, pmdec, phot_g_mean_mag, ref_epoch; AllWISE (IRSA catalogue allwise_p3as_psd) has designation, ra, dec, pmra, pmdec, w1mpro.
 
 ## Known problems
 
@@ -209,6 +218,15 @@ Todo Backend 31: Spectrum function (waiting for go-ahead)
 - Real SPHEREx bit 21 (SOURCE, "mapped to a known source") is treated as info, because it would otherwise be set around every star. Unverified.
 - realcheck compares each frame only with the previous one. With 258 real images from 6 detectors, almost every neighbour pair changes detector or wavelength, so most frames would be yellow. Real use will need a per-detector comparison (after-data #18).
 - Mock-data parts of test_flags.py, test_quality.py and test_realcheck.py have not been run by me; run them and note the result.
+- Epochs in overlays.CATALOGS (Gaia 2016.0, AllWISE about 2010.5) are still not checked against the documentation. The Gaia answer has a ref_epoch column that could be read instead of the fixed 2016.0.
+- AllWISE proper motions look unreliable: the first row of the WISE 0855 field had pmra 2326 and pmdec -1557 mas/yr for a faint source. A wrong proper motion would put its circle in the wrong place (a 2326 mas/yr motion over 15 years is about 35 arcsec, 5 pixels). Consider ignoring WISE proper motion, or only using it when pmcode or the error columns say it is good (check the WISE documentation first, after-data #21).
+- The WISE answer has 777 rows in a 6 arcmin field and Gaia 417, more than MAX_SOURCES = 300; place_sources keeps the brightest. Retune on real data.
+- The Gaia server prints a notice about "two breaking changes" in archive release 3.15. Not a problem so far (the columns we use are fine); recheck if the query breaks.
+- Overlays and spectra are not connected to main.py (no endpoint, no URL setting). Wiring them needs a go-ahead.
+- Spectra do not subtract the sky background, so a reading includes the background around the spot. Real background handling: after-data #19.
+- Spectra mix detectors: different detectors may have different brightness scales, so jumps between bands can come from the instrument (realcheck.py already warns about this).
+- Real frames have different sizes and WCS, so spectrum_at_sky (not spectrum_at_pixel) must be used on real data.
+- The mock data has the same brightness at every wavelength, so mock spectra are flat. A real spectrum will have real shape.
 
 ## How to run and test
 
@@ -242,3 +260,6 @@ Todo Backend 31: Spectrum function (waiting for go-ahead)
 - python test_flags.py (flag tables; mock-data part needs data/mock/ files) and python flags.py (prints the active table)
 - python test_quality.py (mostly-bad frames; mock-data part needs data/mock/ files)
 - python test_realcheck.py (Is it real? check; mock-data part needs data/mock/ files)
+- python test_spectra.py (spectra; astropy part needs astropy; mock-data part needs data/mock/ files)
+- python test_overlays.py (overlays, offline with a fake catalogue)
+- python overlays.py [gaia|wise] (needs internet; prints the real column names and checks CATALOGS)
