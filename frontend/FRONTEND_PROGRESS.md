@@ -2,20 +2,25 @@
 
 ## Current task
 
-Frontend Tasks 1-14 written (not yet tested by me in the browser). Task 15 is blocked (see Requests for backend).
+Frontend Tasks 16-29 written (not yet tested by me in the browser). Task 15 is still blocked (see Requests for backend). Tasks 19, 22 (trail part), 25 and the "red" state of 28 are placeholders until the backend adds endpoints.
 
 ## Done
 
-- Task 1-5: skeleton, one image, RA/Dec form, name search (presets only), animation player.
-- Task 6: Frame counter ("5 / 12") and Loop checkbox. With loop off, play stops on the last frame.
-- Task 7: Space = play/pause, Left/Right arrows = step, swipe left/right on the picture. Keys are ignored inside text boxes, dropdowns, the slider and when a button is focused.
-- Task 8: Preset buttons, built from /api/targets?year=2026.
-- Task 9: ra, dec, fov are read from the page address on load and written back (history.replaceState) on every load.
-- Task 10: Copy link button (navigator.clipboard).
-- Task 11: FOV dropdown filled from /api/limits (min, a few sizes in range, default, max). Changing it reloads the frames.
-- Task 12: Frame info panel: date, detector (0 shown as "several (stacked)"), wavelength, frames stacked, source. Flags row says "Not available yet" (API has no flags).
-- Task 13: Wavelength colour strip: one block per frame, colour from the frame list's own min/max wavelength, click to jump, current frame highlighted.
-- Task 14: Spinner on the picture while loading; errors show the API's "detail" sentence.
+- Task 1-14: see earlier log (skeleton, image, form, name search, player, counter/loop, keys/swipe, presets, URL, copy link, FOV, info panel, colour strip, spinner/errors). Written, not yet tested by me.
+- Task 16: "Brightness curve" dropdown (linear, sqrt, log, asinh) sends `stretch=`. "Match background" checkbox sends `match=on/off`. Both reload the frames.
+- Task 17: Normal / Difference / Stack buttons send `mode=`. Difference shows a "Subtract first/previous frame" choice (`ref=`). Stack shows "per detector / all together" (`group=`). The frame list is reloaded on every change, because stack mode changes the frame numbers. `combine=` is not offered (mean and sum give the same picture, see PROGRESS.md).
+- Task 18: Blink compare: choose frame A and B, press Blink to flip between them every 0.4 s. Play, slider, arrows or Pause stop it.
+- Task 19: Colour picture switch is shown but disabled (no endpoint).
+- Task 20: `?embed=1` hides the header and the side controls. Settings still come from the URL.
+- Task 21: Click the picture to place a marker circle. It is stored as RA/Dec and drawn in every frame at that same sky position. "Clear marker" removes it.
+- Task 22: "Expected path" toggle (preset targets only) calls /api/expected-path and draws a dashed line plus a ring on the current frame. The page address now also has `target=<preset id>` (page only, never sent to /api/frames). "Motion trail" is shown but disabled (no endpoint).
+- Task 23: Hover readout shows RA/Dec under the mouse. Brightness is not available (see requests).
+- Task 24: Magnifier checkbox: a 3x lens follows the mouse (hidden on phones).
+- Task 25: GIF button shown but disabled (no endpoint).
+- Task 26: "Download marker CSV" is made in the browser: one row per frame (date, detector, wavelength, marker RA/Dec). It is a fixed sky position, not a tracked object.
+- Task 27: "Coming later" panel reserves space for spectrum, flags legend and a disabled overlay toggle.
+- Task 28: "Is it real?" row in the info panel: green = first frame or same detector and colour as the frame before; yellow = detector changed, or wavelength changed by more than 5 % (my guess). Red (flagged pixels) is not possible yet (no flags in the API).
+- Task 29: Dark theme already there. Added phone rules (44 px tap targets, taller colour strip, lens hidden). Controls stack under the picture below 760 px.
 
 ## In progress
 
@@ -23,28 +28,38 @@ Frontend Tasks 1-14 written (not yet tested by me in the browser). Task 15 is bl
 
 ## Next step
 
-Frontend Task 15 is blocked until the backend request below is answered. Test Tasks 6-14 first.
+Test Tasks 6-14 and 16-29. Task 15 waits for the backend request below. Task 30 is next after that.
 
 ## Decisions made
 
 - Plain HTML + CSS + JS. No framework, library or CDN.
-- Page address uses the same names as the API: ?ra=&dec=&fov= (stretch, mode will be added in later tasks).
-- FOV dropdown sizes (3, 10, 15) are my own choices inside the limits from /api/limits.
-- Colour strip range is the loaded frames' own min/max wavelength, not a fixed range.
+- Page address uses the API names (?ra=&dec=&fov=&stretch=&mode=&match=&ref=&group=) plus the page-only `target=` and `embed=1`.
+- Marker, hover and lens maths assume north up and east left (API_GUIDE). The overlay uses the PNG's own pixel size, so png_x / png_y from the API are used as they are.
+- The "Is it real?" wavelength limit (5 %) and blink speed (0.4 s) are my own choices.
+- Disabled controls are shown (not hidden) so the layout stays the same when the backend work arrives.
 
 ## Requests for backend
 
 - Name search endpoint (names.py has no URL). Until then the name box only finds the 5 presets.
 - (Optional) One-box coordinates: a `name=` or `coords=` parameter.
-- Task 15 (brightness slider): API_GUIDE.md only offers stretch=linear|sqrt|log|asinh. There is no parameter for brightness level (e.g. black/white percentile). Please add one (for example `clip_low` / `clip_high` or `brightness`) to /api/frames and the image links, with its min/max/default in /api/limits. Task 16 (stretch type dropdown) needs no backend change.
+- Task 15 (brightness slider): no parameter for the black/white level exists. Please add one (for example `clip_low` / `clip_high` or `brightness`) to /api/frames and the image links, with min/max/default in /api/limits.
+- Task 19 (colour picture): an endpoint or `mode=colour` that returns the 3-wavelength PNG (functions exist in processing.py, no URL).
+- Task 22 (motion trail): an endpoint returning `find_moving_dot` results (png_x, png_y per frame).
+- Task 23 (hover brightness): a way to read the value of one pixel (for example `/api/frames/{index}/pixel?x=&y=` with units).
+- Task 25 (GIF): the GIF endpoint (Backend 34).
+- Task 28 (red state): per-frame flag info (Backend 29/30).
 
 ## Known problems
 
-- I could not read main.py, params.py, errors.py, config.py or targets.py. Everything is based on API_GUIDE.md. Not checked: that /api/frames accepts fov together with ra/dec exactly as described (API_GUIDE says it does).
-- With mock data only WISE 0855 returns frames; the other 4 presets give 404 and the page shows the server's message (expected).
+- I could not read main.py, params.py, errors.py, config.py or targets.py. Everything is based on API_GUIDE.md.
+- With mock data only WISE 0855 returns frames; the other 4 presets give 404 and the page shows the server's message (expected). The expected-path toggle can only be tested with WISE 0855.
+- On mock data the dot moves 10x faster than the real star, so the expected path only matches the dot in frame 0 (see PROGRESS.md).
+- The mock frames have different wavelengths per frame, so the "Is it real?" badge may often be yellow on mock data.
+- The marker is a fixed sky position, so it does not follow a moving object.
 - The copy-link button may be blocked outside https/localhost.
-- Swipe and keyboard not tested on a real phone / with a screen reader.
-- Wavelength strip with 258 real frames will have very thin blocks (see Task 4 "after data").
+- Swipe, keyboard, magnifier and the phone layout are not tested on a real phone / screen reader.
+- A tap on a phone places a marker; a swipe should not, but check this.
+- Wavelength strip with 258 real frames will have very thin blocks.
 
 ## How to run and test
 
