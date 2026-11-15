@@ -68,30 +68,30 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Follow the IRSA intro tutorial for WISE 0855. Record what you see in DATA_NOTES.md.
 27. [✔] Easy-update design (added) (Part A)
     Keep the release/collection name in config and query live instead of listing files.
-28. [ ] Skip mostly-bad frames (new) (Part A)
-        If a frame is mostly flagged bad, leave it out. Test the idea on mock flags first.
-29. [ ] Flags and metadata (#16) (Part F)
-        Write flags.py that decodes bits using a table you can swap in once real bit meanings are loaded.
-30. [ ] "Is it real?" check (new) (Part F)
-        Compare neighbouring frames. Warn when the detector or wavelength changed, or when flagged pixels sit near the dot.
-31. [ ] Spectrum function (#15) (Part F)
-        Write spectra.py that builds brightness vs wavelength from mock frames at one pixel.
-32. [ ] Spectrum comparison (new) (Part F)
-        Let spectra.py return two spectra (the mover and a fixed star) so they can be plotted together.
-33. [ ] Overlay catalog function (#17) (Part F)
-        Write overlays.py that fetches Gaia/WISE sources with astroquery and returns pixel positions.
-34. [ ] GIF export (#19) (Part C)
-        Add an endpoint or helper that bundles the frames into an animated GIF with Pillow.
-35. [ ] Export a find as CSV (new) (Part C)
-        An endpoint that returns the marked positions, dates and wavelengths as a CSV file.
-36. [ ] Auto-find movers, optional (new) (Part B)
-        Highlight dots that sit in different places across frames. May need a new library, so ask first. Skip if time is short.
-37. [ ] Tests (added) (Part G)
-        Add small tests per part (ask before installing pytest). Run them before each commit.
-38. [ ] README and requirements (M9) (Part G)
-        Document setup, running, URL parameters and the data release used.
-39. [ ] Future-work notes (new) (Part G)
-        A short docs page: automatic mover detection, a "report a find" button, a bigger sky-survey view.
+28. [✔] Skip mostly-bad frames (new) (Part A)
+    If a frame is mostly flagged bad, leave it out. Test the idea on mock flags first.
+29. [✔] Flags and metadata (#16) (Part F)
+    Write flags.py that decodes bits using a table you can swap in once real bit meanings are loaded.
+30. [✔] "Is it real?" check (new) (Part F)
+    Compare neighbouring frames. Warn when the detector or wavelength changed, or when flagged pixels sit near the dot.
+31. [✔] Spectrum function (#15) (Part F)
+    Write spectra.py that builds brightness vs wavelength from mock frames at one pixel.
+32. [✔] Spectrum comparison (new) (Part F)
+    Let spectra.py return two spectra (the mover and a fixed star) so they can be plotted together.
+33. [✔] Overlay catalog function (#17) (Part F)
+    Write overlays.py that fetches Gaia/WISE sources with astroquery and returns pixel positions.
+34. [✔] GIF export (#19) (Part C)
+    Add an endpoint or helper that bundles the frames into an animated GIF with Pillow.
+35. [✔] Export a find as CSV (new) (Part C)
+    An endpoint that returns the marked positions, dates and wavelengths as a CSV file.
+36. [✔] Auto-find movers, optional (new) (Part B)
+    Highlight dots that sit in different places across frames. May need a new library, so ask first. Skip if time is short.
+37. [✔] Tests (added) (Part G)
+    Add small tests per part (ask before installing pytest). Run them before each commit.
+38. [✔] README and requirements (M9) (Part G)
+    Document setup, running, URL parameters and the data release used.
+39. [✔] Future-work notes (new) (Part G)
+    A short docs page: automatic mover detection, a "report a find" button, a bigger sky-survey view.
 
 ---
 
@@ -171,9 +171,9 @@ This file replaces Todo_List.pdf. Nothing is ticked.
 1. [ ] Inspect real files (Part A)
        Open one real cutout, list extensions and header keywords, update FRAME_FORMAT.md if needed.
 2. [ ] Real image search (#5) (Part A)
-       Implement find_images with the SIA query (spherex_qr2), sorted by date.
+       Implement search_images in data_irsa.py with the SIA query (collections from config.SPHEREX_SIA_COLLECTIONS), sorted by t_min.
 3. [ ] Real cutout download (Part A)
-       Implement get_cutout from IRSA's cutout documentation. Do not guess the URL format.
+       Implement download_cutout. The link is the SIA access_url plus ?center=RA,DECd&size=DEGREES, verified by download in Backend 26.
 4. [ ] Read real cutouts (Part A)
        Pull IMAGE, FLAGS, VARIANCE, WCS, DETECTOR and DATE into the frame format.
 5. [ ] Wavelength map (Part A)
