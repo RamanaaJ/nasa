@@ -80,18 +80,18 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Let spectra.py return two spectra (the mover and a fixed star) so they can be plotted together.
 33. [✔] Overlay catalog function (#17) (Part F)
     Write overlays.py that fetches Gaia/WISE sources with astroquery and returns pixel positions.
-34. [ ] GIF export (#19) (Part C)
-        Add an endpoint or helper that bundles the frames into an animated GIF with Pillow.
-35. [ ] Export a find as CSV (new) (Part C)
-        An endpoint that returns the marked positions, dates and wavelengths as a CSV file.
-36. [ ] Auto-find movers, optional (new) (Part B)
-        Highlight dots that sit in different places across frames. May need a new library, so ask first. Skip if time is short.
-37. [ ] Tests (added) (Part G)
-        Add small tests per part (ask before installing pytest). Run them before each commit.
-38. [ ] README and requirements (M9) (Part G)
-        Document setup, running, URL parameters and the data release used.
-39. [ ] Future-work notes (new) (Part G)
-        A short docs page: automatic mover detection, a "report a find" button, a bigger sky-survey view.
+34. [✔] GIF export (#19) (Part C)
+    Add an endpoint or helper that bundles the frames into an animated GIF with Pillow.
+35. [✔] Export a find as CSV (new) (Part C)
+    An endpoint that returns the marked positions, dates and wavelengths as a CSV file.
+36. [✔] Auto-find movers, optional (new) (Part B)
+    Highlight dots that sit in different places across frames. May need a new library, so ask first. Skip if time is short.
+37. [✔] Tests (added) (Part G)
+    Add small tests per part (ask before installing pytest). Run them before each commit.
+38. [✔] README and requirements (M9) (Part G)
+    Document setup, running, URL parameters and the data release used.
+39. [✔] Future-work notes (new) (Part G)
+    A short docs page: automatic mover detection, a "report a find" button, a bigger sky-survey view.
 
 ---
 

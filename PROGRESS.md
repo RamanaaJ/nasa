@@ -42,6 +42,12 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 31: spectrum function. spectra.py has spectrum_along_path (one position per frame), spectrum_at_pixel (same pixel in every frame) and spectrum_at_sky (RA/Dec, each frame's own WCS finds the pixel). A reading is the mean of a (2\*half_size+1) square of pixels, leaving out NaN pixels and pixels flagged "bad"; it has flux, error (from VARIANCE), n_pixels, usable and a reason. Results are sorted by wavelength. Not connected to main.py. test_spectra.py checks it. All parts passed live (mock star about 55 in every frame, mock dot about 135).
 - Todo Backend 32: spectrum comparison. spectra.py has compare_spectra(frames, mover_positions, star_ra, star_dec, half_size, normalize) returning {mover, star, normalized, scales}. normalize=True divides each spectrum by its own median. Not connected to main.py. test_spectra.py checks it. One check in the first run failed because my test was wrong (the mock dot moves only about 1 pixel per frame, so a 3x3 square kept catching it); the check was rewritten to read a single pixel in frame 0 and frame 11.
 - Todo Backend 33: overlay catalog function. overlays.py has CATALOGS (gaia, wise: label, epoch, column names), fetch_sources (astroquery; a fetcher can be passed in for tests), normalize_rows, position_at_year (proper motion to the frame's date), place_sources (pixel path per frame, brightest MAX_SOURCES = 300 kept) and get_overlay. OverlayError is a ValueError. Not connected to main.py. test_overlays.py checks it offline with a fake catalogue. Real queries checked by hand on 2026-11-15 with python overlays.py (WISE 0855 position, 6 arcmin): Gaia gave 417 rows, AllWISE gave 777 rows, and every column in CATALOGS exists in both answers.
+- Todo Backend 34: GIF export. gif_export.py (greys_to_gif_bytes, check_duration) turns the grey pictures into one looping GIF using image_to_png_bytes for the flip and enlargement; MAX_FRAMES (50) is enforced here. main.py has grey_pictures(p) (same steps as the image endpoint, for all frames) and GET /api/animation.gif?...&speed_ms=200 (20 to 5000), sent as a download. test_gif_export.py checks it (offline parts + server part).
+- Todo Backend 35: CSV export. export_csv.py (build_rows, to_csv_text; columns kind, frame, obs_time, detector, wavelength_um, n_stacked, x, y, ra_deg, dec_deg, ok, snr). main.py has GET /api/export.csv?...&kind=trail|expected&target=.. (trail = processing.find_moving_dot, expected = targets.expected_positions + locate_in_frames), sent as a download. test_export_csv.py checks it (offline parts + server part).
+- Todo Backend 36: auto-find movers. movers.py (find_candidates): median fixed sky, subtract, local maxima at least 6 sigma with at least 1 direct neighbour above 2 sigma (rejects one-pixel cosmic rays), brightest 10 per frame, with x, y, png_x, png_y, ra_deg, dec_deg, snr. numpy only, no new library. Not connected to main.py. test_movers.py checks it (offline parts + mock-data part).
+- Todo Backend 37: run*all_tests.py runs every test*\*.py (no pytest) and prints a summary; exit code 1 if any file fails.
+- Todo Backend 38: README.md written (setup, run, endpoints, URL settings, data release, tests). requirements.txt unchanged (no new library).
+- Todo Backend 39: docs/FUTURE_WORK.md written.
 
 ## In progress
 
@@ -49,7 +55,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-Todo Backend 34: GIF export (waiting for go-ahead)
+- Check the data and start to work on backend to do after data
 
 ## Decisions made
 
@@ -138,6 +144,10 @@ Todo Backend 34: GIF export (waiting for go-ahead)
 - The overlay search radius = cutout half-diagonal + SEARCH_MARGIN_ARCMIN (3, a guess), so stars that move into the picture are found.
 - overlays.fetch_sources takes a replaceable "fetcher", so everything except the online call is tested offline.
 - Verified on 2026-11-15 by a real query: Gaia (astroquery.gaia, cone_search_async) has the columns source_id, ra, dec, pmra, pmdec, phot_g_mean_mag, ref_epoch; AllWISE (IRSA catalogue allwise_p3as_psd) has designation, ra, dec, pmra, pmdec, w1mpro.
+- GIF: one GIF frame per picture of the request (same stretch, match, mode as the PNGs); more than MAX_FRAMES gives HTTP 400 ("try mode=stack"). Pillow may merge identical neighbouring frames. speed_ms outside 20 to 5000 gives 400; non-numbers give 422.
+- CSV: one row per frame, numbered like /api/frames (a stacked request gives stacked rows). Only numbers and ISO dates are written. Floats rounded to 6 decimals; empty cell = unknown.
+- movers.py thresholds (MOVER_MIN_SNR 6, MOVER_NEIGHBOUR_SNR 2, MOVER_MIN_NEIGHBOURS 1, MOVER_MAX_PER_FRAME 10) are guesses; retune on real data (after-data #24).
+- Tests are run with run_all_tests.py (plain Python, no pytest).
 
 ## Known problems
 
@@ -227,6 +237,11 @@ Todo Backend 34: GIF export (waiting for go-ahead)
 - Spectra mix detectors: different detectors may have different brightness scales, so jumps between bands can come from the instrument (realcheck.py already warns about this).
 - Real frames have different sizes and WCS, so spectrum_at_sky (not spectrum_at_pixel) must be used on real data.
 - The mock data has the same brightness at every wavelength, so mock spectra are flat. A real spectrum will have real shape.
+- The GIF needs at most MAX_FRAMES frames; one real position has 258 images, so a real GIF request needs mode=stack or a frame default (after-data #8).
+- The CSV trail needs at least 3 frames on the same pixel grid (after-data #11); it exports only the single dot found by find_moving_dot or an expected path. User-placed marker positions are not exported yet (needs the marker tool on the page).
+- movers.py does not link spots into tracks, loses very slow movers in the median, may report variable stars, ignores flags, and needs one pixel grid. A real PSF may not satisfy the neighbour rule; retune after-data #24. Not connected to main.py.
+- The offline parts of the three new test files were run with a stub for astropy; the server and mock-data parts have not been run by me; run them and note the result.
+- The frontend/ folder (served by main.py) does not exist yet; Project structure.txt still says static/.
 
 ## How to run and test
 
@@ -263,3 +278,5 @@ Todo Backend 34: GIF export (waiting for go-ahead)
 - python test_spectra.py (spectra; astropy part needs astropy; mock-data part needs data/mock/ files)
 - python test_overlays.py (overlays, offline with a fake catalogue)
 - python overlays.py [gaia|wise] (needs internet; prints the real column names and checks CATALOGS)
+- python run_all_tests.py (all test files; add words to pick some, e.g. python run_all_tests.py cache fov)
+- python test_gif_export.py, python test_export_csv.py, python test_movers.py

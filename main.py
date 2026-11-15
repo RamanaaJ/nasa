@@ -7,6 +7,8 @@
 #   GET /api/targets?year=..                                 the 5 preset targets (JSON)
 #   GET /api/frames?ra=..&dec=..&fov=..&mode=..&stretch=..&match=..   list of frames (JSON)
 #   GET /api/frames/{index}/image?...                        one frame as a PNG picture
+#   GET /api/animation.gif?...&speed_ms=..                   all frames as one animated GIF (download)
+#   GET /api/export.csv?...&kind=trail|expected&target=..    positions per frame as a CSV file (download)
 #   everything else                                          files from the static/ folder
 #
 # Backend 11: every setting in the address is checked by params.py first.
@@ -36,6 +38,8 @@ import config
 import coords
 import data_mock
 import errors
+import export_csv
+import gif_export
 import names
 import params
 import practice_check
@@ -262,6 +266,99 @@ def expected_path(
         "frame_count": len(frames),
         "path": path,
     }
+
+def grey_pictures(p):
+    """Backend 34: ALL frames of one request as grey arrays (the same steps as the
+    image endpoint above, so a GIF frame looks exactly like the PNG of that frame)."""
+    frames = frames_for(p)
+    if p.match:
+        frames = processing.match_backgrounds(frames)
+    if p.mode == "stack":
+        frames = stack_for(frames, p)
+    if p.mode == "difference":
+        try:
+            frames = processing.difference_frames(frames, p.ref)
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
+        limit = processing.shared_difference_limit(frames)
+        return [processing.stretch_difference(f["image"], mode=p.stretch, limit=limit) for f in frames]
+    limits = processing.shared_limits(frames) if p.match else None
+    return [processing.stretch_image(f["image"], mode=p.stretch, limits=limits) for f in frames]
+
+
+SPEED_HELP = (f"Time each frame is shown, in milliseconds, {gif_export.MIN_DURATION_MS} to "
+              f"{gif_export.MAX_DURATION_MS}. Default {gif_export.DEFAULT_DURATION_MS}.")
+KIND_HELP = ("Which positions to export: " + ", ".join(export_csv.KINDS) +
+             ". trail = where the moving dot is found; expected = where a preset target should be (needs target).")
+
+
+@app.get("/api/animation.gif")
+def animation_gif(
+    ra: str = Query(..., description=RA_HELP),
+    dec: str = Query(..., description=DEC_HELP),
+    fov: str | None = Query(None, description=FOV_HELP),
+    stretch: str | None = Query(None, description=STRETCH_HELP),
+    mode: str | None = Query(None, description=MODE_HELP),
+    match: str | None = Query(None, description=MATCH_HELP),
+    ref: str | None = Query(None, description=REF_HELP),
+    combine: str | None = Query(None, description=COMBINE_HELP),
+    group: str | None = Query(None, description=GROUP_HELP),
+    speed_ms: int = Query(gif_export.DEFAULT_DURATION_MS, description=SPEED_HELP),
+):
+    """Backend 34: every frame of the request as one animated GIF that loops forever."""
+    p = check_request(ra, dec, fov, stretch, mode, match, ref, combine, group)
+    try:
+        gif_export.check_duration(speed_ms)
+        data = gif_export.greys_to_gif_bytes(grey_pictures(p), speed_ms)
+    except ValueError as err:                    # bad speed, or more frames than MAX_FRAMES
+        raise HTTPException(status_code=400, detail=str(err))
+    name = f"spherex_{p.ra:.4f}_{p.dec:+.4f}.gif"
+    return Response(content=data, media_type="image/gif",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/export.csv")
+def export_csv_file(
+    ra: str = Query(..., description=RA_HELP),
+    dec: str = Query(..., description=DEC_HELP),
+    fov: str | None = Query(None, description=FOV_HELP),
+    mode: str | None = Query(None, description=MODE_HELP),
+    combine: str | None = Query(None, description=COMBINE_HELP),
+    group: str | None = Query(None, description=GROUP_HELP),
+    kind: str = Query("trail", description=KIND_HELP),
+    target: str | None = Query(None, description=TARGET_HELP + " Only for kind=expected."),
+):
+    """Backend 35: one row per frame (same numbering as /api/frames) as a CSV file."""
+    p = check_request(ra, dec, fov, None, mode, None, None, combine, group)
+    kind = kind.strip().lower()
+    if kind not in export_csv.KINDS:
+        raise HTTPException(status_code=400,
+                            detail=f"Unknown kind '{kind}'. Choose one of: {', '.join(export_csv.KINDS)}.")
+    found = None
+    if kind == "expected":
+        if target is None or not target.strip():
+            raise HTTPException(status_code=400, detail="kind=expected needs a target, for example target=wise0855.")
+        found = names.resolve_local(target)
+        if found is None:
+            labels = ", ".join(t["label"] for t in targets.TARGETS.values())
+            raise HTTPException(status_code=400,
+                                detail=f"'{target}' is not one of the built-in targets ({labels}).")
+    frames = frames_for(p)
+    if p.mode == "stack":
+        frames = stack_for(frames, p)            # same frame numbers as /api/frames
+    try:
+        if kind == "trail":
+            positions = processing.find_moving_dot(frames)
+        else:
+            expected = targets.expected_positions(found.target_id, [f["obs_time"] for f in frames])
+            positions = processing.locate_in_frames(frames, expected)
+        text = export_csv.to_csv_text(export_csv.build_rows(kind, frames, positions))
+    except ValueError as err:                    # for example fewer than 3 frames for a trail
+        raise HTTPException(status_code=400, detail=str(err))
+    name = f"spherex_{kind}_{p.ra:.4f}_{p.dec:+.4f}.csv"
+    return Response(content=text, media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
 
 @app.get("/api/targets")
 def list_targets(year: str | None = Query(None, description=YEAR_HELP)):
