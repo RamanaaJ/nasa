@@ -177,3 +177,47 @@ button:disabled {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+/* ===== Tasks 6-14 ===== */
+
+/* Task 14: spinner sits on top of the picture while loading */
+.stage { position: relative; }
+.spinner {
+  position: absolute;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 4px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+.spinner[hidden] { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 3s; }
+}
+
+/* Task 6: counter and loop toggle */
+.counter { min-width: 4.5rem; text-align: center; font-variant-numeric: tabular-nums; }
+.loop-label { display: flex; align-items: center; gap: 0.3rem; }
+
+/* Task 13: wavelength colour strip */
+.wave-strip { display: flex; height: 1.25rem; margin-top: 0.6rem; border-radius: 4px; overflow: hidden; }
+.wave-strip button {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  opacity: 0.55;
+}
+.wave-strip button.current { opacity: 1; outline: 2px solid #fff; outline-offset: -2px; }
+.strip-caption { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); margin: 0.2rem 0 0; }
+
+/* Task 8: preset buttons */
+.preset-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.preset-list button { margin-top: 0; font-size: 0.85rem; padding: 0.4rem 0.7rem; }
+
+/* Task 12: frame info panel */
+.info-list { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; margin: 0; font-size: 0.9rem; }
+.info-list dt { color: var(--muted); }
+.info-list dd { margin: 0; }

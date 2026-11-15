@@ -7,43 +7,30 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <!-- Task 1: page skeleton. Three areas: header, picture (stage), controls. -->
-
     <header class="site-header">
       <h1>SPHEREx Sky Blink</h1>
       <p>Type a spot in the sky and watch what moves.</p>
     </header>
 
     <main class="layout">
-      <!-- LEFT: the picture and the player bar -->
+      <!-- LEFT: picture, player, colour strip -->
       <section class="stage-area" aria-label="Sky images">
-        <div class="stage">
-          <!-- Task 2: the one <img> that every frame is shown in -->
-          <img
-            id="sky-image"
-            alt="No sky image loaded yet"
-            hidden
-          />
-          <p id="stage-message" class="stage-message">
-            Enter coordinates and press Go.
-          </p>
+        <div class="stage" id="stage">
+          <img id="sky-image" alt="No sky image loaded yet" hidden />
+          <p id="stage-message" class="stage-message">Enter coordinates and press Go.</p>
+          <!-- Task 14: loading spinner -->
+          <div id="spinner" class="spinner" role="progressbar" aria-label="Loading" hidden></div>
         </div>
 
-        <!-- Task 5: animation player -->
         <div class="player" aria-label="Animation player">
           <button id="play-button" type="button" disabled>Play</button>
-
           <label class="visually-hidden" for="frame-slider">Frame</label>
-          <input
-            id="frame-slider"
-            type="range"
-            min="0"
-            max="0"
-            value="0"
-            step="1"
-            disabled
-          />
-
+          <input id="frame-slider" type="range" min="0" max="0" value="0" step="1" disabled />
+          <!-- Task 6: frame counter + loop switch -->
+          <span id="frame-counter" class="counter" aria-live="off">0 / 0</span>
+          <label class="loop-label" title="Start again after the last frame">
+            <input id="loop-toggle" type="checkbox" checked /> Loop
+          </label>
           <label for="speed-select">Speed</label>
           <select id="speed-select">
             <option value="1000">Slow</option>
@@ -52,52 +39,59 @@
           </select>
         </div>
 
-        <!-- Status line: loading text and friendly error messages from the API -->
+        <!-- Task 13: wavelength colour strip (buttons are added by app.js) -->
+        <div id="wave-strip" class="wave-strip" aria-label="Frames by wavelength"></div>
+        <p class="strip-caption"><span id="strip-min"></span><span id="strip-max"></span></p>
+
         <p id="status" class="status" role="status" aria-live="polite"></p>
       </section>
 
-      <!-- RIGHT: the controls -->
+      <!-- RIGHT: controls -->
       <section class="controls" aria-label="Where to look">
-        <!-- Task 4: name search (preset targets only for now) -->
+        <!-- Task 8: preset buttons (added by app.js from /api/targets) -->
+        <div class="panel">
+          <h2>Test targets</h2>
+          <div id="preset-list" class="preset-list"></div>
+        </div>
+
         <form id="name-form" class="panel">
           <h2>Search by name</h2>
           <label for="name-input">Target name</label>
-          <input
-            id="name-input"
-            type="text"
-            placeholder="Barnard's Star"
-            autocomplete="off"
-          />
+          <input id="name-input" type="text" placeholder="Barnard's Star" autocomplete="off" />
           <button type="submit">Find</button>
-          <p class="hint">
-            Works for the five test targets only, for now.
-          </p>
+          <p class="hint">Works for the five test targets only, for now.</p>
         </form>
 
-        <!-- Task 3: RA/Dec form -->
         <form id="coord-form" class="panel">
           <h2>Or type coordinates</h2>
           <label for="ra-input">RA</label>
-          <input
-            id="ra-input"
-            type="text"
-            placeholder="133.79 or 08h55m10.8s"
-            autocomplete="off"
-            required
-          />
+          <input id="ra-input" type="text" placeholder="133.79 or 08h55m10.8s" autocomplete="off" required />
           <label for="dec-input">Dec</label>
-          <input
-            id="dec-input"
-            type="text"
-            placeholder="-7.25 or -07d14m42s"
-            autocomplete="off"
-            required
-          />
+          <input id="dec-input" type="text" placeholder="-7.25 or -07d14m42s" autocomplete="off" required />
+          <!-- Task 11: field of view (options are added by app.js from /api/limits) -->
+          <label for="fov-select">Field of view (arcminutes)</label>
+          <select id="fov-select"><option value="">Default</option></select>
           <button type="submit">Go</button>
-          <p class="hint">
-            Degrees or hours/minutes/seconds both work.
-          </p>
+          <p class="hint">Degrees or hours/minutes/seconds both work.</p>
         </form>
+
+        <!-- Task 12: frame info -->
+        <div class="panel" aria-label="Frame info">
+          <h2>Frame info</h2>
+          <dl class="info-list">
+            <dt>Date</dt><dd id="info-date">-</dd>
+            <dt>Detector</dt><dd id="info-detector">-</dd>
+            <dt>Wavelength</dt><dd id="info-wave">-</dd>
+            <dt>Frames stacked</dt><dd id="info-stacked">-</dd>
+            <dt>Source</dt><dd id="info-source">-</dd>
+            <dt>Flags</dt><dd id="info-flags">Not available yet</dd>
+          </dl>
+        </div>
+
+        <!-- Task 10: copy link -->
+        <div class="panel">
+          <button id="copy-link" type="button">Copy link</button>
+        </div>
       </section>
     </main>
 
