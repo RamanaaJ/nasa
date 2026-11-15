@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-M1: Mock data generator (preparing: verifying targets first)
+Backend after-data, task 1
 
 ## Done
 
@@ -133,7 +133,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Bandpass names are SPHEREx-D1 to SPHEREx-D6 (confirmed in the SIA results: 36, 48, 45, 36, 48, 45 images, 258 in total).
 - Real cutout structure: PRIMARY (no data, has VERSION), IMAGE (MJy/sr), FLAGS (int32), VARIANCE, ZODI, EPSF, WCS-WAVE, all the same size inside one cutout. The FLAGS header keeps the flag table: 22 bits (MSKN/MSKD cards: 0, 1, 2, 6, 7, 9, 10, 11, 12, 14, 15, 17, 19-28). I assume bit n has value 2\*\*n (not checked).
 - A cutout is centred within about 0.5 pixel of the requested position; the pixel scale is 6.15 to 6.16 arcsec (the mock uses 6.2).
-- Real image search is LIVE: every request asks IRSA through TAP (it sees new weekly data right after ingestion; SIA lags about a day). The query is not filtered by release, so new data needs no code change. To start a fresh cache for a new release, change RELEASE_NAME (one line).
+- Real image search is LIVE: search uses SIA for now, because TAP failed twice with 502. (it sees new weekly data right after ingestion; SIA lags about a day). The query is not filtered by release, so new data needs no code change. To start a fresh cache for a new release, change RELEASE_NAME (one line).
 - Only numbers (range-checked) and a bandpass matching SPHEREx-D1..D6 are put into the query text.
 - Flag tables are keyed by bit NUMBER; the value is 1 << bit. The real table assumes bit n = 2\*\*n (still unchecked). Real categories (bad/contaminated/info) are my guesses: replace them with the IRSA Explanatory Supplement table (after-data #7, #17).
 - Frame quality: only pixels with data are counted; the NaN edge of a cutout is "no data", not "bad data". Cosmic rays count as "bad" in the mock table.
@@ -162,7 +162,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Online name lookup depends on CDS, which is currently down
 - config.py is the single place for settings; other files use import config
 - config.py uses DEFAULT_FOV_ARCMIN (arcminutes) from the start; the old degrees version is not carried over
-- MAX_FRAMES = 50 and RELEASE_NAME = "spherex_qr2" are placeholders, not verified values
+- MAX_FRAMES = 50 is a guess. RELEASE_NAME is now “spherex_dr1_qr3”, a cache label.
 - cache.py is not used by anything yet; the Frames endpoint (Backend 9) will call get_or_load. config.py's CACHE_DIR is used by cache.py.
 - Real data returns 501 until data_irsa.py exists (Backend 25).
 - FOV limits are enforced by params.py (from config.py).
@@ -175,7 +175,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - The 500 handler was not triggered in the live test (optional step 5 in the Backend 14 instructions); it is only checked by reading the code.
 - Environment: Python 3.15 could not install PyYAML on Windows (no C++ compiler). The project uses Python 3.13; the venv was rebuilt with `py -3.13 -m venv venv`.
 - A FOV bigger than the image gives a cutout with NaN (black) edges; this is expected. On the mock data (about 10.3 arcmin wide) anything above about 10 arcmin has black edges.
-- MAX_FRAMES (config.py) is still not enforced anywhere. Planned for after-data #8 (Sort, group, limit).
+- MAX_FRAMES is only enforced by the GIF. Planned for after-data #8 (Sort, group, limit).
 - Background matching removes only an offset, not scale differences between frames or bands. Real SPHEREx bands will probably differ in scale. Retune in after-data #16.
 - The mock frames already have almost the same background (noise around 10), so matching changes little on mock data; test_background.py uses frames with big offsets to prove it works.
 - estimate_background ignores flags (real flag bits are not known yet) and the median still includes stars in very crowded fields.
@@ -218,10 +218,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - astropy prints a long INFO message about missing "-SIP" in CTYPE for every cutout (the IRSA tutorial says this comes from the spectral WCS). Harmless, but noisy; silence it when the real reader is written.
 - The IRSA tutorial's example header has a rotated pixel grid (PC matrix with off-diagonal terms), so real pictures are probably NOT north-up like the mock. Not checked in our run. The hover and marker maths assume north up (see Decisions); recheck (after-data #11).
 - DETECTOR prints as 3 / 6; whether it is stored as a number or text was not checked: use int().
-- The first picture (cache/test_png/real_first_cutout.png) has not been looked at yet by me: it is not known if WISE 0855 is visible.
 - cache.py never expires entries, so a cached position keeps its old frames after new weekly data arrives until RELEASE_NAME is changed or python cache.py clear is run. A maximum cache age would need a go-ahead.
 - The SPHEREx-D1..D6 pattern is inferred from the tutorial's 'SPHEREx-D2' (unverified). Cutout size in degrees is from the tutorial (unverified against the cutout service page). It is not known whether the TAP tables include the deep-survey images.
-- TODO after-data #2 and #3 still mention "SIA query (spherex_qr2)"; the plan is now the TAP query in data_irsa.build_search_query.
+- The plan is now SIA with the collections in config.SPHEREX_SIA_COLLECTIONS.
 - IRSA's tutorials show some cutout downloads failing at random (4 of 84 in one run); retries are needed (after-data #10).
 - quality.py and realcheck.py are not connected to main.py (no endpoint, no URL setting). Wiring them needs a go-ahead. If drop_mostly_bad is wired into frames_for, the dropped frames should be reported to the page, and the cache should keep the unfiltered frames.
 - REAL_TABLE_DRAFT categories and MAX_BAD_FRACTION = 0.5, NEAR_RADIUS_PIX = 3, WAVELENGTH_CHANGE_FRACTION = 0.05 are guesses. Retune on real data (after-data #9, #17, #18).
@@ -241,7 +240,6 @@ M1: Mock data generator (preparing: verifying targets first)
 - The CSV trail needs at least 3 frames on the same pixel grid (after-data #11); it exports only the single dot found by find_moving_dot or an expected path. User-placed marker positions are not exported yet (needs the marker tool on the page).
 - movers.py does not link spots into tracks, loses very slow movers in the median, may report variable stars, ignores flags, and needs one pixel grid. A real PSF may not satisfy the neighbour rule; retune after-data #24. Not connected to main.py.
 - The offline parts of the three new test files were run with a stub for astropy; the server and mock-data parts have not been run by me; run them and note the result.
-- The frontend/ folder (served by main.py) does not exist yet; Project structure.txt still says static/.
 
 ## How to run and test
 

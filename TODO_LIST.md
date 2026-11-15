@@ -171,9 +171,9 @@ This file replaces Todo_List.pdf. Nothing is ticked.
 1. [ ] Inspect real files (Part A)
        Open one real cutout, list extensions and header keywords, update FRAME_FORMAT.md if needed.
 2. [ ] Real image search (#5) (Part A)
-       Implement find_images with the SIA query (spherex_qr2), sorted by date.
+       Implement search_images in data_irsa.py with the SIA query (collections from config.SPHEREX_SIA_COLLECTIONS), sorted by t_min.
 3. [ ] Real cutout download (Part A)
-       Implement get_cutout from IRSA's cutout documentation. Do not guess the URL format.
+       Implement download_cutout. The link is the SIA access_url plus ?center=RA,DECd&size=DEGREES, verified by download in Backend 26.
 4. [ ] Read real cutouts (Part A)
        Pull IMAGE, FLAGS, VARIANCE, WCS, DETECTOR and DATE into the frame format.
 5. [ ] Wavelength map (Part A)
