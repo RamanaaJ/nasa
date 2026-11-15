@@ -68,12 +68,12 @@ This file replaces Todo_List.pdf. Nothing is ticked.
     Follow the IRSA intro tutorial for WISE 0855. Record what you see in DATA_NOTES.md.
 27. [✔] Easy-update design (added) (Part A)
     Keep the release/collection name in config and query live instead of listing files.
-28. [ ] Skip mostly-bad frames (new) (Part A)
-        If a frame is mostly flagged bad, leave it out. Test the idea on mock flags first.
-29. [ ] Flags and metadata (#16) (Part F)
-        Write flags.py that decodes bits using a table you can swap in once real bit meanings are loaded.
-30. [ ] "Is it real?" check (new) (Part F)
-        Compare neighbouring frames. Warn when the detector or wavelength changed, or when flagged pixels sit near the dot.
+28. [✔] Skip mostly-bad frames (new) (Part A)
+    If a frame is mostly flagged bad, leave it out. Test the idea on mock flags first.
+29. [✔] Flags and metadata (#16) (Part F)
+    Write flags.py that decodes bits using a table you can swap in once real bit meanings are loaded.
+30. [✔] "Is it real?" check (new) (Part F)
+    Compare neighbouring frames. Warn when the detector or wavelength changed, or when flagged pixels sit near the dot.
 31. [ ] Spectrum function (#15) (Part F)
         Write spectra.py that builds brightness vs wavelength from mock frames at one pixel.
 32. [ ] Spectrum comparison (new) (Part F)

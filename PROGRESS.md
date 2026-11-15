@@ -36,6 +36,9 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 25: real data skeleton. data_irsa.py has FRAME_KEYS and four documented, empty functions (search_images, download_cutout, read_cutout, get_frames) that raise NotImplementedError; get_frames has the same signature as data_mock.get_frames. It imports no network library. Not connected to main.py (frames_for still gives 501). The docstrings record the planned mapping from a real file to a frame, based on IRSA's SPHEREx tutorials. test_data_irsa.py checks it.
 - Todo Backend 26: real query by hand (run 2026-11-15, WISE 0855 at its 2026.0 position, 6 arcmin). try_real_query.py now searches with IRSA's SIA service (ROUTE = "sia"), because the tutorial's TAP query failed. It builds the cutout link from the SIA access_url by adding ?center=RA,DECd&size=0.1 (my own inference from the tutorials; it WORKED). It downloaded the first 3 cutouts and printed extensions, date cards, flag bits, pixel scale and wavelength. It writes docs/real_query_report.txt and cache/test_png/real_first_cutout.png. Results are in docs/DATA_NOTES.md.
 - Todo Backend 27: easy-update design. config.py: RELEASE_NAME is now a cache LABEL ("spherex_dr1_qr3", replacing the superseded "spherex_qr2" placeholder) and SPHEREX_SIA_COLLECTIONS lists the wide-survey SIA collections (not used yet). data_irsa.py has size_degrees and build_search_query: the live TAP query text for a position (no network, numbers checked, bandpass must match SPHEREx-D1..D6). No file list is kept anywhere. test_update_design.py checks it (offline).
+- Todo Backend 28: skip mostly-bad frames. quality.py has bad_fraction (share of pixels with data that carry a "bad" flag; NaN pixels not counted; no flags = 0.0; no data at all = 1.0) and drop_mostly_bad(frames, max_fraction=MAX_BAD_FRACTION) which returns (kept, dropped). A frame is dropped when its fraction is GREATER than MAX_BAD_FRACTION (0.5, a guess). Not connected to main.py. test_quality.py checks it (offline parts + mock-data part).
+- Todo Backend 29: flags.py with swappable flag tables (bit number -> name, description, category bad/contaminated/info). MOCK_TABLE (our own bits) and REAL_TABLE_DRAFT (22 real names/descriptions from real_query_report.txt; categories are my guesses). Functions: validate_table, active_table (follows config.USE_MOCK), mask_for, known_mask, decode_value, category_pixels, count_flags, frame_summary, legend. Not connected to main.py. test_flags.py checks it.
+- Todo Backend 30: "Is it real?" check. realcheck.py has check_frames(frames, positions, radius, wave_fraction): per frame a status (red = bad/contaminated flags within NEAR_RADIUS_PIX = 3 of the dot, yellow = detector or wavelength changed from the previous frame, green = nothing found, grey = flags not checkable) plus reasons. WAVELENGTH_CHANGE_FRACTION = 0.05 (guess). Not connected to main.py. test_realcheck.py checks it.
 
 ## In progress
 
@@ -43,7 +46,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-Todo Backend 28: Skip mostly-bad frames (waiting for go-ahead)
+Todo Backend 31: Spectrum function (waiting for go-ahead)
 
 ## Decisions made
 
@@ -123,6 +126,9 @@ Todo Backend 28: Skip mostly-bad frames (waiting for go-ahead)
 - A cutout is centred within about 0.5 pixel of the requested position; the pixel scale is 6.15 to 6.16 arcsec (the mock uses 6.2).
 - Real image search is LIVE: every request asks IRSA through TAP (it sees new weekly data right after ingestion; SIA lags about a day). The query is not filtered by release, so new data needs no code change. To start a fresh cache for a new release, change RELEASE_NAME (one line).
 - Only numbers (range-checked) and a bandpass matching SPHEREx-D1..D6 are put into the query text.
+- Flag tables are keyed by bit NUMBER; the value is 1 << bit. The real table assumes bit n = 2\*\*n (still unchecked). Real categories (bad/contaminated/info) are my guesses: replace them with the IRSA Explanatory Supplement table (after-data #7, #17).
+- Frame quality: only pixels with data are counted; the NaN edge of a cutout is "no data", not "bad data". Cosmic rays count as "bad" in the mock table.
+- "Is it real?" colours: red > yellow > green; grey = could not check. Positions are passed in (find_moving_dot or locate_in_frames), never computed inside realcheck.py. "Near" uses image[y, x] with y counted from the bottom row, like the rest of the project.
 
 ## Known problems
 
@@ -198,6 +204,11 @@ Todo Backend 28: Skip mostly-bad frames (waiting for go-ahead)
 - The SPHEREx-D1..D6 pattern is inferred from the tutorial's 'SPHEREx-D2' (unverified). Cutout size in degrees is from the tutorial (unverified against the cutout service page). It is not known whether the TAP tables include the deep-survey images.
 - TODO after-data #2 and #3 still mention "SIA query (spherex_qr2)"; the plan is now the TAP query in data_irsa.build_search_query.
 - IRSA's tutorials show some cutout downloads failing at random (4 of 84 in one run); retries are needed (after-data #10).
+- quality.py and realcheck.py are not connected to main.py (no endpoint, no URL setting). Wiring them needs a go-ahead. If drop_mostly_bad is wired into frames_for, the dropped frames should be reported to the page, and the cache should keep the unfiltered frames.
+- REAL_TABLE_DRAFT categories and MAX_BAD_FRACTION = 0.5, NEAR_RADIUS_PIX = 3, WAVELENGTH_CHANGE_FRACTION = 0.05 are guesses. Retune on real data (after-data #9, #17, #18).
+- Real SPHEREx bit 21 (SOURCE, "mapped to a known source") is treated as info, because it would otherwise be set around every star. Unverified.
+- realcheck compares each frame only with the previous one. With 258 real images from 6 detectors, almost every neighbour pair changes detector or wavelength, so most frames would be yellow. Real use will need a per-detector comparison (after-data #18).
+- Mock-data parts of test_flags.py, test_quality.py and test_realcheck.py have not been run by me; run them and note the result.
 
 ## How to run and test
 
@@ -228,3 +239,6 @@ Todo Backend 28: Skip mostly-bad frames (waiting for go-ahead)
 - python test_data_irsa.py (skeleton checks, offline)
 - python try_real_query.py (needs internet; about 1-2 minutes; writes docs/real_query_report.txt and cache/test_png/real_first_cutout.png)
 - python test_update_design.py (release label and live query text, offline)
+- python test_flags.py (flag tables; mock-data part needs data/mock/ files) and python flags.py (prints the active table)
+- python test_quality.py (mostly-bad frames; mock-data part needs data/mock/ files)
+- python test_realcheck.py (Is it real? check; mock-data part needs data/mock/ files)
