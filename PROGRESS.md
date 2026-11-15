@@ -33,6 +33,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 22: expected path. targets.py has decimal_year (datetime -> year number) and expected_positions (target id + list of times -> list of (ra, dec) using position_at_epoch). processing.py has locate_in_frames (sky positions -> pixel x, y, png_x, png_y and an "inside" flag for each frame, using the frame's WCS). main.py has GET /api/expected-path?target=..&ra=..&dec=..&fov=..&mode=..&combine=..&group=.. returning one entry per frame (same numbering as /api/frames). test_expected.py checks it (offline parts + mock-data part + server part).
 - Todo Backend 23: practice mock files. data_practice.py (run: python data_practice.py) writes 12 fake FITS files to data/practice/ (same parts and header names as the mock files, no DOTX/DOTY) with 4 hidden movers at different speeds (A slow 0.6, B medium about 1.7, C fast about 3.0, D very fast about 4.7 pixels per frame) plus the fixed stars, on a fake sky centred on RA 150.0, Dec +2.0. The answers are in a separate file, data/practice/answers.json (per mover and per frame: x, y, ra_deg, dec_deg, obs_time, speeds). data_practice.get_frames() reads the files back as frames. config.py has PRACTICE_DIR. data/practice/ is in .gitignore. test_practice_data.py checks it. Not connected to main.py yet.
 - Todo Backend 24: practice game answer check. practice_check.py (pure Python) has check_click(ra, dec, frame) which reads data/practice/answers.json and says whether the click is within HIT_RADIUS_ARCSEC (15, a guess) of a hidden mover's position IN THAT FRAME; separation_arcsec handles the RA wrap and cos(Dec). main.py has GET /api/practice/check?ra=..&dec=..&frame=.. returning {hit, mover_id, label, frame, radius_arcsec, movers_total} (mover_id and label only on a hit, nothing else about the answers). test_practice_check.py checks it (offline parts + real-answers part + server part).
+- Todo Backend 25: real data skeleton. data_irsa.py has FRAME_KEYS and four documented, empty functions (search_images, download_cutout, read_cutout, get_frames) that raise NotImplementedError; get_frames has the same signature as data_mock.get_frames. It imports no network library. Not connected to main.py (frames_for still gives 501). The docstrings record the planned mapping from a real file to a frame, based on IRSA's SPHEREx tutorials. test_data_irsa.py checks it.
 
 ## In progress
 
@@ -40,7 +41,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 25: Real data skeleton (waiting for go-ahead)
+Todo Backend 26: Try one real query by hand
 
 ## Decisions made
 
@@ -111,6 +112,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Practice check is stateless: the page keeps the score. A click is checked against the mover positions of the frame it was made on (movers are in a different place every frame). If two movers are in range, the nearer wins. A miss reveals nothing (no distance), so players cannot play hot-and-cold.
 - /api/practice/check errors: bad ra/dec 400, no such frame 404 (same wording style as the image endpoint), missing/wrongly typed setting 422, practice files missing 503 ("Run: python data_practice.py").
 - The click position is sent as RA/Dec (plain degrees or any format coords.py understands). The page converts a click on the picture to RA/Dec with the frame's centre and pixel scale from /api/frames.
+- IRSA tutorials (updated 5 March 2026) say QR3 and DR1 supersede QR2. Wide-survey SIA collections: spherex_dr1, spherex_qr3 (deep: spherex_dr1_deep, spherex_qr3_deep). Real file extensions: IMAGE (MJy/sr), FLAGS, VARIANCE, ZODI, EPSF, WCS-WAVE. Wavelength comes from a second ("W") spectral WCS, not a header card. Flag meanings are in the FLAGS header (MSKN/MSKD cards).
 
 ## Known problems
 
@@ -172,6 +174,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - HIT_RADIUS_ARCSEC = 15 (about 2.4 mock pixels) is a guess; retune when the game page exists. The very fast mover D moves 4.7 pixels per frame, so a click placed on where it was in the previous frame is a miss, as intended.
 - answers.json is read on every request (a tiny file), so there is no stale cache, but it is also not protected: anyone with access to the data/ folder can read the answers. Only static/ is served by the web server.
 - The practice frames themselves are not yet served by the API (see Backend 23 known problem), so the practice game cannot be played in the browser yet.
+- data_irsa.py is a skeleton: real data still gives 501. Unverified: unit/format of the archive's observation time (time_bounds_lower), which header card holds the observation time (the DATE card in the tutorial looks like a processing date), and whether cutout size= is in degrees. Task 26 should settle these.
 
 ## How to run and test
 
@@ -199,3 +202,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python data_practice.py (creates data/practice/practice_00..11.fits and answers.json)
 - python test_practice_data.py (checks the practice files and answers; skipped if they do not exist)
 - python test_practice_check.py (answer check; Part 3 needs data/practice/ files; server part if uvicorn is running)
+- python test_data_irsa.py (skeleton checks, offline)

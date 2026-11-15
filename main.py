@@ -97,7 +97,7 @@ def check_request(ra, dec, fov, stretch, mode, match=None, ref=None, combine=Non
 def frames_for(p):
     """Get the frames for one request: from the cache, or from the data source."""
     if not config.USE_MOCK:
-        # data_irsa.py does not exist yet (TODO Backend 25)
+                # data_irsa.py is only a skeleton so far (Backend 25); real code comes after-data #2-#4
         raise HTTPException(
             status_code=501,
             detail="Real SPHEREx data is not connected yet. Set USE_MOCK = True in config.py.")
