@@ -34,6 +34,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 23: practice mock files. data_practice.py (run: python data_practice.py) writes 12 fake FITS files to data/practice/ (same parts and header names as the mock files, no DOTX/DOTY) with 4 hidden movers at different speeds (A slow 0.6, B medium about 1.7, C fast about 3.0, D very fast about 4.7 pixels per frame) plus the fixed stars, on a fake sky centred on RA 150.0, Dec +2.0. The answers are in a separate file, data/practice/answers.json (per mover and per frame: x, y, ra_deg, dec_deg, obs_time, speeds). data_practice.get_frames() reads the files back as frames. config.py has PRACTICE_DIR. data/practice/ is in .gitignore. test_practice_data.py checks it. Not connected to main.py yet.
 - Todo Backend 24: practice game answer check. practice_check.py (pure Python) has check_click(ra, dec, frame) which reads data/practice/answers.json and says whether the click is within HIT_RADIUS_ARCSEC (15, a guess) of a hidden mover's position IN THAT FRAME; separation_arcsec handles the RA wrap and cos(Dec). main.py has GET /api/practice/check?ra=..&dec=..&frame=.. returning {hit, mover_id, label, frame, radius_arcsec, movers_total} (mover_id and label only on a hit, nothing else about the answers). test_practice_check.py checks it (offline parts + real-answers part + server part).
 - Todo Backend 25: real data skeleton. data_irsa.py has FRAME_KEYS and four documented, empty functions (search_images, download_cutout, read_cutout, get_frames) that raise NotImplementedError; get_frames has the same signature as data_mock.get_frames. It imports no network library. Not connected to main.py (frames_for still gives 501). The docstrings record the planned mapping from a real file to a frame, based on IRSA's SPHEREx tutorials. test_data_irsa.py checks it.
+- Todo Backend 26: real query by hand (run 2026-11-15, WISE 0855 at its 2026.0 position, 6 arcmin). try_real_query.py now searches with IRSA's SIA service (ROUTE = "sia"), because the tutorial's TAP query failed. It builds the cutout link from the SIA access_url by adding ?center=RA,DECd&size=0.1 (my own inference from the tutorials; it WORKED). It downloaded the first 3 cutouts and printed extensions, date cards, flag bits, pixel scale and wavelength. It writes docs/real_query_report.txt and cache/test_png/real_first_cutout.png. Results are in docs/DATA_NOTES.md.
 
 ## In progress
 
@@ -41,7 +42,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-Todo Backend 26: Try one real query by hand
+- Todo Backend 27: Easy-update design
 
 ## Decisions made
 
@@ -113,6 +114,12 @@ Todo Backend 26: Try one real query by hand
 - /api/practice/check errors: bad ra/dec 400, no such frame 404 (same wording style as the image endpoint), missing/wrongly typed setting 422, practice files missing 503 ("Run: python data_practice.py").
 - The click position is sent as RA/Dec (plain degrees or any format coords.py understands). The page converts a click on the picture to RA/Dec with the frame's centre and pixel scale from /api/frames.
 - IRSA tutorials (updated 5 March 2026) say QR3 and DR1 supersede QR2. Wide-survey SIA collections: spherex_dr1, spherex_qr3 (deep: spherex_dr1_deep, spherex_qr3_deep). Real file extensions: IMAGE (MJy/sr), FLAGS, VARIANCE, ZODI, EPSF, WCS-WAVE. Wavelength comes from a second ("W") spectral WCS, not a header card. Flag meanings are in the FLAGS header (MSKN/MSKD cards).
+- Real image search uses SIA (Irsa.query_sia, collections spherex_dr1 + spherex_qr3, from config.SPHEREX_SIA_COLLECTIONS) for now: it answered in 4.3 s with 258 images for WISE 0855. The TAP query (data_irsa.build_search_query) timed out twice with 502 Proxy Error after about 400 s and is NOT used. SIA lags about a day behind new data (IRSA tutorial). This replaces the Backend 27 decision "search is live through TAP". The release label and "no file list" parts of that decision still hold.
+- A cutout link is the SIA access_url plus ?center=RA,DECd&size=SIZE. size is in DEGREES (0.1 gave 58-59 pixels of 6.15 arcsec, so 0.1 deg = 6 arcmin). Verified by download.
+- Observation time: SIA column t_min is an MJD (60800.700028 = 2025-05-05T16:48:02, equal to the header cards MJD-OBS and DATE-OBS). The IMAGE header also has DATE-BEG, DATE-AVG, DATE-END and TIMESYS=UTC. The DATE card is the PROCESSING date (2026-07-17 for a 2025-05-05 observation), NOT the observation time.
+- Bandpass names are SPHEREx-D1 to SPHEREx-D6 (confirmed in the SIA results: 36, 48, 45, 36, 48, 45 images, 258 in total).
+- Real cutout structure: PRIMARY (no data, has VERSION), IMAGE (MJy/sr), FLAGS (int32), VARIANCE, ZODI, EPSF, WCS-WAVE, all the same size inside one cutout. The FLAGS header keeps the flag table: 22 bits (MSKN/MSKD cards: 0, 1, 2, 6, 7, 9, 10, 11, 12, 14, 15, 17, 19-28). I assume bit n has value 2\*\*n (not checked).
+- A cutout is centred within about 0.5 pixel of the requested position; the pixel scale is 6.15 to 6.16 arcsec (the mock uses 6.2).
 
 ## Known problems
 
@@ -175,6 +182,15 @@ Todo Backend 26: Try one real query by hand
 - answers.json is read on every request (a tiny file), so there is no stale cache, but it is also not protected: anyone with access to the data/ folder can read the answers. Only static/ is served by the web server.
 - The practice frames themselves are not yet served by the API (see Backend 23 known problem), so the practice game cannot be played in the browser yet.
 - data_irsa.py is a skeleton: real data still gives 501. Unverified: unit/format of the archive's observation time (time_bounds_lower), which header card holds the observation time (the DATE card in the tutorial looks like a processing date), and whether cutout size= is in degrees. Task 26 should settle these.
+- IRSA's TAP service failed on 2026-11-15: the synchronous query ran about 400 s and then gave "502 Proxy Error" (twice). The asynchronous TAP route (pyvo run_async) was not tried. Cause unknown (IRSA load or the query itself). Retest later before dropping TAP.
+- Real cutouts are NOT the same size: 59x58, 59x59 and 58x58 pixels for the same 6 arcmin request. Difference, stack, trail and colour picture (which need identical sizes and pixel grids) would give HTTP 400 on real data. Frames must be reprojected onto one grid first (after-data #11).
+- One position gives 258 images over 12 months (6 detectors, different wavelengths), not 12 frames like the mock. MAX_FRAMES = 50 is not enforced yet. A sensible default (for example one detector at a time) is needed (after-data #8).
+- Downloads are slow: 13.5, 18.5 and 26.8 s per cutout, and one needed a retry after an HTTPError. Done serially, 258 cutouts would take well over an hour, so downloads must run in parallel, retry, be cached, and the 5 demo targets should be pre-cached (after-data #10 and #27).
+- The wavelength at the target depends on where it lands on the detector and differs between frames of the same detector (4.9674 vs 5.0034 um for two D6 frames), and 5.0034 is slightly above the nominal band edge of 5.00. A frame's wavelength_um is the value at the cutout centre only.
+- astropy prints a long INFO message about missing "-SIP" in CTYPE for every cutout (the IRSA tutorial says this comes from the spectral WCS). Harmless, but noisy; silence it when the real reader is written.
+- The IRSA tutorial's example header has a rotated pixel grid (PC matrix with off-diagonal terms), so real pictures are probably NOT north-up like the mock. Not checked in our run. The hover and marker maths assume north up (see Decisions); recheck (after-data #11).
+- DETECTOR prints as 3 / 6; whether it is stored as a number or text was not checked: use int().
+- The first picture (cache/test_png/real_first_cutout.png) has not been looked at yet by me: it is not known if WISE 0855 is visible.
 
 ## How to run and test
 
@@ -203,3 +219,4 @@ Todo Backend 26: Try one real query by hand
 - python test_practice_data.py (checks the practice files and answers; skipped if they do not exist)
 - python test_practice_check.py (answer check; Part 3 needs data/practice/ files; server part if uvicorn is running)
 - python test_data_irsa.py (skeleton checks, offline)
+- python try_real_query.py (needs internet; about 1-2 minutes; writes docs/real_query_report.txt and cache/test_png/real_first_cutout.png)

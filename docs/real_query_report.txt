@@ -1,0 +1,81 @@
+Target wise0855 at 2026.0: RA 133.759765, Dec -7.242186 degrees, cutout 6.0 arcmin = 0.1 deg
+
+TAP query:
+SELECT
+    'https://irsa.ipac.caltech.edu/' || a.uri || '?center=133.75976461144327,-7.242186d&size=0.1' AS uri,
+    p.time_bounds_lower,
+    p.energy_bandpassname
+FROM spherex.artifact a
+JOIN spherex.plane p ON a.planeid = p.planeid
+WHERE 1 = CONTAINS(POINT('ICRS', 133.75976461144327, -7.242186), p.poly)
+ORDER BY p.time_bounds_lower
+
+   SIA answered in 4.3 s with 258 images. Columns: ['s_ra', 's_dec', 'facility_name', 'instrument_name', 'dataproduct_subtype', 'calib_level', 'dataproduct_type', 'energy_bandpassname', 'energy_emband', 'obs_id', 's_resolution', 'em_min', 'em_max', 'em_res_power', 'proposal_title', 'access_url', 'access_format', 'access_estsize', 't_exptime', 's_region', 'obs_collection', 'obs_intent', 'algorithm_name', 'facility_keywords', 'instrument_keywords', 'environment_photometric', 'proposal_id', 'proposal_pi', 'proposal_project', 'target_name', 'target_type', 'target_standard', 'target_moving', 'target_keywords', 'obs_release_date', 's_xel1', 's_xel2', 's_pixel_scale', 'position_timedependent', 't_min', 't_max', 't_resolution', 't_xel', 'obs_publisher_did', 's_fov', 'em_xel', 'pol_states', 'pol_xel', 'cloud_access', 'o_ucd', 'upload_row_id']
+Query took 4.3 s and found 258 images. Columns: ['uri', 'time_bounds_lower', 'energy_bandpassname']
+Images per bandpass: SPHEREx-D1: 36, SPHEREx-D2: 48, SPHEREx-D3: 45, SPHEREx-D4: 36, SPHEREx-D5: 48, SPHEREx-D6: 45
+time_bounds_lower, first: raw value np.float64(60800.700028)
+      IF this is an MJD, it means 2025-05-05T16:48:02.419
+time_bounds_lower, last: raw value np.float64(61174.287218)
+      IF this is an MJD, it means 2026-05-14T06:53:35.635
+First link: https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/3/level2_2025W19_1B_0116_1D3_spx_l2b-v27-2026-197.fits?center=133.75976461144327,-7.242186d&size=0.1
+
+Cutout 0: SPHEREx-D3
+   downloaded in 18.5 s
+   shape (59, 58), DETECTOR=3, BUNIT=MJy / sr, pixel scale 6.15 arcsec, target at pixel (29.0, 28.5), wavelength 2.3634 um
+   --- full details of this first cutout ---
+   extension: (0, 'PRIMARY', 1, 'PrimaryHDU', 5, (), '', '')
+   extension: (1, 'IMAGE', 1, 'ImageHDU', 276, (58, 59), 'float32', '')
+   extension: (2, 'FLAGS', 1, 'ImageHDU', 185, (58, 59), 'int32', '')
+   extension: (3, 'VARIANCE', 1, 'ImageHDU', 119, (58, 59), 'float32', '')
+   extension: (4, 'ZODI', 1, 'ImageHDU', 122, (58, 59), 'float32', '')
+   extension: (5, 'EPSF', 1, 'BinTableHDU', 55, '451R x 11C', ['J', 'J', 'E', 'E', 'E', 'E', 'J', 'E', 'E', 'E', '1089D'], '')
+   extension: (6, 'WCS-WAVE', 1, 'BinTableHDU', 22, '1R x 3C', ['9J', '14J', '252E'], '')
+   IMAGE: 0.0% NaN, min -2.043, median 0.149, max 33.11
+   header cards whose name has DATE, MJD, TIME, OBS or VERSION in it:
+      PRIMARY: VERSION = '7.0.5'
+      IMAGE: OBSID = '2025W19_1B_0116_1'
+      IMAGE: DATE = '2026-07-17T10:16:06.188'
+      IMAGE: OBS_IN_SBAND = 'False'
+      IMAGE: TIMESYS = 'UTC'
+      IMAGE: MJDREF = 0.0
+      IMAGE: DATE-OBS = '2025-05-05T16:48:02.459'
+      IMAGE: MJD-OBS = 60800.700028461
+      IMAGE: DATE-BEG = '2025-05-05T16:48:02.459'
+      IMAGE: MJD-BEG = 60800.700028461
+      IMAGE: DATE-AVG = '2025-05-05T16:49:00.018'
+      IMAGE: MJD-AVG = 60800.70069465
+      IMAGE: DATE-END = '2025-05-05T16:49:57.577'
+      IMAGE: MJD-END = 60800.701360839
+   flag bits (bit number, name, description):
+       0  TRANSIENT     Transient detected during SUR
+       1  OVERFLOW      Overflow detected during SUR
+       2  SUR_ERROR     Error in onboard processing
+       6  NONFUNC       Permanently unusable
+       7  DICHROIC      Low efficiency due to dichroic
+       9  MISSING_DATA  Onboard data lost
+      10  HOT           Hot pixel
+      11  COLD          Anomalously low signal
+      12  FULLSAMPLE    Pixel full sample history is available
+      14  PHANMISS      Phantom correction was not applied
+      15  NONLINEAR     Nonlinearity correction cannot be applied reliably
+      17  PERSIST       Persistent charge above threshold
+      19  OUTLIER       Pixel flagged by Detect Outliers
+      20  CROSSTALK     Pixel affected by crosstalk.
+      21  SOURCE        Pixel mapped to a known source
+      22  GHOST         Affected by a bright source inside the exposure
+      23  GHOST_FPA     Affected by a bright source on another detector
+      24  GHOST_EXT     Pixel affected by a bright source outside FOV
+      25  STREAK        Pixel affected by a streak
+      26  BLOOM         Pixel part of a bloom artifact
+      27  SNOWBALL      Pixel part of a snowball artifact
+      28  HALO          Pixel part of a transient halo
+   saved a picture of this cutout: D:\nasa_spaceapps\nasa\cache\test_png\real_first_cutout.png
+
+Cutout 1: SPHEREx-D6
+   transient error (HTTPError), try 1 of 3
+   downloaded in 26.8 s
+   shape (59, 59), DETECTOR=6, BUNIT=MJy / sr, pixel scale 6.15 arcsec, target at pixel (29.4, 29.1), wavelength 4.9674 um
+
+Cutout 2: SPHEREx-D6
+   downloaded in 13.5 s
+   shape (58, 58), DETECTOR=6, BUNIT=MJy / sr, pixel scale 6.16 arcsec, target at pixel (28.8, 28.6), wavelength 5.0034 um
