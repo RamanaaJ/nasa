@@ -1,0 +1,72 @@
+# API guide for the frontend (written from main.py, params.py, errors.py)
+
+Base: same origin as the page (http://127.0.0.1:8000). Full interactive docs: /docs.
+
+## Rules that apply everywhere
+
+- Every error is JSON {"detail": "a friendly sentence"}. Show `detail` directly.
+- Status codes: 400 bad value, 404 no images / no such frame, 405 wrong method,
+  422 missing setting, 500 crash, 501 real data not connected, 503 mock files
+  missing, 504 data source too slow.
+- RA/Dec accept plain degrees or sexagesimal text (08h55m10.8s, -07d14m42s).
+  A "+" in a URL means a space, so encode it as %2B (use URLSearchParams).
+- FOV is in ARCMINUTES. Get min/max/default from /api/limits, never hardcode.
+
+## Endpoints
+
+1. GET /api/limits
+   -> {"fov_arcmin": {"min", "max", "default"}} (use for the FOV control)
+
+2. GET /api/targets?year=2026
+   -> {"epoch", "count", "targets": [{id, label, simbad_name, ra_deg, dec_deg,
+   ra_j2000_deg, dec_j2000_deg, pmra_mas_yr, pmdec_mas_yr, note}]}
+   Use year=2026 so the preset positions match when SPHEREx observed.
+
+3. GET /api/frames?ra=&dec=&fov=&stretch=&mode=&match=&ref=&combine=&group=
+   Only ra and dec are required.
+   - stretch: linear | sqrt | log | asinh (default sqrt)
+   - mode: normal | difference | stack (default normal)
+   - match: on | off (default off)
+   - ref: first | previous (only for mode=difference)
+   - combine: mean | sum, group: detector | all (only for mode=stack)
+     -> {source, ra_deg, dec_deg, fov_arcmin, stretch, mode, match, ref, combine,
+     group, frame_count, frames: [{index, image_url, obs_time, detector,
+     wavelength_um, n_stacked, width_px, height_px, pixel_scale_arcsec,
+     center_ra_deg, center_dec_deg}]}
+   - `image_url` is a ready-to-use link. Put it in <img src>. Do not build it yourself.
+   - In mode=stack the list is the STACKED list (6 frames on mock data), so
+     frame numbers change: reload the list whenever mode/group/combine changes.
+   - detector 0 means "several detectors stacked".
+
+4. GET /api/frames/{index}/image?...same settings... -> PNG (north up, ~400 px)
+
+5. GET /api/expected-path?target=&ra=&dec=&fov=&mode=&combine=&group=
+   target must be one of the 5 presets (id or name, e.g. wise0855).
+   -> {target, mode, frame_count, path: [{index, obs_time, ra_deg, dec_deg,
+   x, y, png_x, png_y, inside}]}
+   png_x/png_y are in PNG pixels from the top-left: draw the marker there.
+   Use the same ra/dec/fov/mode/combine/group as /api/frames.
+
+6. GET /api/practice/check?ra=&dec=&frame=
+   -> {hit, mover_id, label, frame, radius_arcsec, movers_total}
+
+## NOT available yet (do not build against these)
+
+- Name search (names.py exists but has no URL). Frontend Task 4: name box only
+  works for the 5 presets via /api/targets until a backend endpoint exists.
+- Motion trail and colour picture: functions exist, no endpoint.
+- Practice game frames (practice files are not served), GIF, CSV, flags,
+  "is it real?", spectrum, overlays: backend tasks 28-35 not done.
+
+## Current data situation (Backend 25-27)
+
+- config.USE_MOCK = True: only the WISE 0855 preset (year-2026 position) returns
+  frames. The other 4 presets give 404. This is expected; show the detail message.
+- USE_MOCK = False currently gives 501 "Real data is not connected yet".
+- `source` in /api/frames is the cache label ("mock" now, later the release name).
+  Show it in the info panel.
+- Real data will differ (Backend 26 findings): ~258 images per position
+  (not 12), cutouts differ by a pixel in size, each download takes 13-27 s,
+  and wavelength varies per frame. So the page will later need progress text,
+  a frame limit and retry (Frontend Section 4, tasks 6-7).
+- Hover/marker maths assume north up and east left. Recheck on real data.
