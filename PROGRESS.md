@@ -35,6 +35,7 @@ M1: Mock data generator (preparing: verifying targets first)
 - Todo Backend 24: practice game answer check. practice_check.py (pure Python) has check_click(ra, dec, frame) which reads data/practice/answers.json and says whether the click is within HIT_RADIUS_ARCSEC (15, a guess) of a hidden mover's position IN THAT FRAME; separation_arcsec handles the RA wrap and cos(Dec). main.py has GET /api/practice/check?ra=..&dec=..&frame=.. returning {hit, mover_id, label, frame, radius_arcsec, movers_total} (mover_id and label only on a hit, nothing else about the answers). test_practice_check.py checks it (offline parts + real-answers part + server part).
 - Todo Backend 25: real data skeleton. data_irsa.py has FRAME_KEYS and four documented, empty functions (search_images, download_cutout, read_cutout, get_frames) that raise NotImplementedError; get_frames has the same signature as data_mock.get_frames. It imports no network library. Not connected to main.py (frames_for still gives 501). The docstrings record the planned mapping from a real file to a frame, based on IRSA's SPHEREx tutorials. test_data_irsa.py checks it.
 - Todo Backend 26: real query by hand (run 2026-11-15, WISE 0855 at its 2026.0 position, 6 arcmin). try_real_query.py now searches with IRSA's SIA service (ROUTE = "sia"), because the tutorial's TAP query failed. It builds the cutout link from the SIA access_url by adding ?center=RA,DECd&size=0.1 (my own inference from the tutorials; it WORKED). It downloaded the first 3 cutouts and printed extensions, date cards, flag bits, pixel scale and wavelength. It writes docs/real_query_report.txt and cache/test_png/real_first_cutout.png. Results are in docs/DATA_NOTES.md.
+- Todo Backend 27: easy-update design. config.py: RELEASE_NAME is now a cache LABEL ("spherex_dr1_qr3", replacing the superseded "spherex_qr2" placeholder) and SPHEREX_SIA_COLLECTIONS lists the wide-survey SIA collections (not used yet). data_irsa.py has size_degrees and build_search_query: the live TAP query text for a position (no network, numbers checked, bandpass must match SPHEREx-D1..D6). No file list is kept anywhere. test_update_design.py checks it (offline).
 
 ## In progress
 
@@ -42,7 +43,7 @@ M1: Mock data generator (preparing: verifying targets first)
 
 ## Next step
 
-- Todo Backend 27: Easy-update design
+Todo Backend 28: Skip mostly-bad frames (waiting for go-ahead)
 
 ## Decisions made
 
@@ -120,6 +121,8 @@ M1: Mock data generator (preparing: verifying targets first)
 - Bandpass names are SPHEREx-D1 to SPHEREx-D6 (confirmed in the SIA results: 36, 48, 45, 36, 48, 45 images, 258 in total).
 - Real cutout structure: PRIMARY (no data, has VERSION), IMAGE (MJy/sr), FLAGS (int32), VARIANCE, ZODI, EPSF, WCS-WAVE, all the same size inside one cutout. The FLAGS header keeps the flag table: 22 bits (MSKN/MSKD cards: 0, 1, 2, 6, 7, 9, 10, 11, 12, 14, 15, 17, 19-28). I assume bit n has value 2\*\*n (not checked).
 - A cutout is centred within about 0.5 pixel of the requested position; the pixel scale is 6.15 to 6.16 arcsec (the mock uses 6.2).
+- Real image search is LIVE: every request asks IRSA through TAP (it sees new weekly data right after ingestion; SIA lags about a day). The query is not filtered by release, so new data needs no code change. To start a fresh cache for a new release, change RELEASE_NAME (one line).
+- Only numbers (range-checked) and a bandpass matching SPHEREx-D1..D6 are put into the query text.
 
 ## Known problems
 
@@ -191,6 +194,10 @@ M1: Mock data generator (preparing: verifying targets first)
 - The IRSA tutorial's example header has a rotated pixel grid (PC matrix with off-diagonal terms), so real pictures are probably NOT north-up like the mock. Not checked in our run. The hover and marker maths assume north up (see Decisions); recheck (after-data #11).
 - DETECTOR prints as 3 / 6; whether it is stored as a number or text was not checked: use int().
 - The first picture (cache/test_png/real_first_cutout.png) has not been looked at yet by me: it is not known if WISE 0855 is visible.
+- cache.py never expires entries, so a cached position keeps its old frames after new weekly data arrives until RELEASE_NAME is changed or python cache.py clear is run. A maximum cache age would need a go-ahead.
+- The SPHEREx-D1..D6 pattern is inferred from the tutorial's 'SPHEREx-D2' (unverified). Cutout size in degrees is from the tutorial (unverified against the cutout service page). It is not known whether the TAP tables include the deep-survey images.
+- TODO after-data #2 and #3 still mention "SIA query (spherex_qr2)"; the plan is now the TAP query in data_irsa.build_search_query.
+- IRSA's tutorials show some cutout downloads failing at random (4 of 84 in one run); retries are needed (after-data #10).
 
 ## How to run and test
 
@@ -220,3 +227,4 @@ M1: Mock data generator (preparing: verifying targets first)
 - python test_practice_check.py (answer check; Part 3 needs data/practice/ files; server part if uvicorn is running)
 - python test_data_irsa.py (skeleton checks, offline)
 - python try_real_query.py (needs internet; about 1-2 minutes; writes docs/real_query_report.txt and cache/test_png/real_first_cutout.png)
+- python test_update_design.py (release label and live query text, offline)

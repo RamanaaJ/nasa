@@ -11,11 +11,19 @@ from pathlib import Path
 USE_MOCK = True
 
 # ---------- Real data release ----------
-# Name of the SPHEREx data release / collection to query.
-# PLACEHOLDER: "spherex_qr2" comes from our own TODO_LIST.md (Backend after-data #2).
-# It has NOT been verified against IRSA yet. Check it when the real data layer is built.
-# Switching to a newer release should only need this one line to change.
-RELEASE_NAME = "spherex_qr2"
+# RELEASE_NAME is a LABEL used in the cache key (cache.current_release()).
+# The real search (data_irsa.build_search_query) asks IRSA live and is NOT
+# filtered by this name, so new weekly data shows up without any code change.
+# To start with a fresh cache (for example after a new data release), change
+# this ONE line. Old cache files are simply no longer used.
+# IRSA's tutorials say DR1 and QR3 supersede QR2.
+RELEASE_NAME = "spherex_dr1_qr3"
+
+# IRSA collection names for the SIA search (names from IRSA's tutorial).
+# NOT used yet: the TAP query does not take a collection. Kept here so a
+# switch to SIA (which lags about a day) is a one-place change.
+# The deep-survey collections are spherex_dr1_deep and spherex_qr3_deep.
+SPHEREX_SIA_COLLECTIONS = ("spherex_dr1", "spherex_qr3")
 
 # ---------- Field of view ----------
 # All field-of-view values in this project use ARCMINUTES (see FRAME_FORMAT.md).
@@ -41,7 +49,7 @@ CACHE_DIR = BASE_DIR / "cache"          # used by the cache step later (Backend 
 if __name__ == "__main__":
     # Quick self-test: run  python config.py
     print("USE_MOCK           :", USE_MOCK)
-    print("RELEASE_NAME       :", RELEASE_NAME, "(unverified placeholder)")
+    print("RELEASE_NAME       :", RELEASE_NAME, "(cache label)")
     print("MIN_FOV_ARCMIN     :", MIN_FOV_ARCMIN)
     print("DEFAULT_FOV_ARCMIN :", DEFAULT_FOV_ARCMIN)
     print("MAX_FOV_ARCMIN     :", MAX_FOV_ARCMIN)

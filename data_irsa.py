@@ -12,6 +12,17 @@
 #
 # Real code is written in the "after the data" part of TODO_LIST.md
 # (#2 search, #3 download, #4 read). Nothing here is connected to main.py.
+import math
+import re
+
+# Start of every cutout link (tutorial: the TAP query puts this in front of a.uri)
+IRSA_BASE_URL = "https://irsa.ipac.caltech.edu/"
+
+# Bandpass names look like 'SPHEREx-D2' in the tutorial. D1-D6 is my inference
+# from the six detectors (UNVERIFIED). Only this exact pattern is allowed
+# into the query text.
+_BANDPASS = re.compile(r"^SPHEREx-D[1-6]$")
+
 
 # The keys every frame must have (see FRAME_FORMAT.md). The contract test
 # (after-data #6) will compare real frames against this list.
@@ -24,6 +35,46 @@ def _not_written(name, step):
         f"data_irsa.{name}() is not written yet (TODO after-data #{step}). "
         f"Set USE_MOCK = True in config.py to use the mock data.")
 
+def size_degrees(fov_arcmin):
+    """Cutout size for the IRSA link. The tutorial gives size in degrees
+    (its example uses 0.1 for 6 arcmin); not yet checked against the cutout
+    service page (UNVERIFIED)."""
+    fov = float(fov_arcmin)
+    if not math.isfinite(fov) or fov <= 0:
+        raise ValueError("Field of view must be a number greater than zero.")
+    return round(fov / 60.0, 6)
+
+
+def build_search_query(ra_deg, dec_deg, fov_arcmin, bandpass=None):
+    """The TAP query text for 'which images cover this position' (no network).
+
+    Same query as IRSA's cutout tutorial: one row per spectral image, with the
+    cutout link, the observation time and the bandpass, oldest first.
+    Live query, so no list of files is kept anywhere. Only numbers (checked)
+    and a bandpass that matches 'SPHEREx-D1'..'SPHEREx-D6' go into the text.
+    bandpass: None = all detectors.
+    """
+    ra, dec = float(ra_deg), float(dec_deg)
+    if not (math.isfinite(ra) and 0 <= ra <= 360):
+        raise ValueError("RA must be between 0 and 360 degrees.")
+    if not (math.isfinite(dec) and -90 <= dec <= 90):
+        raise ValueError("Dec must be between -90 and +90 degrees.")
+    size = size_degrees(fov_arcmin)
+    extra = ""
+    if bandpass is not None:
+        if not _BANDPASS.match(str(bandpass)):
+            raise ValueError("The bandpass must look like SPHEREx-D2 (D1 to D6).")
+        extra = f"\n        AND p.energy_bandpassname = '{bandpass}'"
+    return f"""
+SELECT
+    '{IRSA_BASE_URL}' || a.uri || '?center={ra},{dec}d&size={size}' AS uri,
+    p.time_bounds_lower,
+    p.energy_bandpassname
+FROM spherex.artifact a
+JOIN spherex.plane p ON a.planeid = p.planeid
+WHERE 1 = CONTAINS(POINT('ICRS', {ra}, {dec}), p.poly){extra}
+ORDER BY p.time_bounds_lower
+"""
 
 def search_images(ra_deg, dec_deg, fov_arcmin):
     """WILL ask IRSA which SPHEREx images cover this position.
@@ -37,6 +88,7 @@ def search_images(ra_deg, dec_deg, fov_arcmin):
     Live query, no list of files is kept (see Backend 27).
     Needs the network. A slow answer must raise TimeoutError so main.py can
     turn it into HTTP 504.
+    Use build_search_query() for the query text.
     """
     _not_written("search_images", 2)
 
