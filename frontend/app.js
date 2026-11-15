@@ -814,4 +814,137 @@ async function start() {
     if (wise) goToTarget(wise);
   }
 }
+// ---------------------------------------------------------------
+// 19. Task 30: reset view (puts every setting back to its start)
+// ---------------------------------------------------------------
+const resetButton = document.getElementById("reset-view");
+const advancedPanel = document.getElementById("advanced");
+
+resetButton.addEventListener("click", () => {
+  pause();
+  setMode("normal");
+  stretchSelect.value = "sqrt"; // the default in index.html
+  matchToggle.checked = false;
+  refSelect.value = "first";
+  groupSelect.value = "detector";
+  // The FOV option that loadLimits() labelled "(default)"
+  const defaultFov = Array.from(fovSelect.options).find((o) => o.textContent.includes("(default)"));
+  if (defaultFov) fovSelect.value = defaultFov.value;
+  marker = null;
+  showExpected = false;
+  expectedToggle.checked = false;
+  magnifierToggle.checked = false;
+  lens.hidden = true;
+  reload(); // loads the same position with the starting settings
+  setStatus("View reset.");
+});
+
+// ---------------------------------------------------------------
+// 20. Task 32: guided mission (find the moving dot of WISE 0855)
+// ---------------------------------------------------------------
+const missionStart = document.getElementById("mission-start");
+const missionBox = document.getElementById("mission-box");
+const missionCount = document.getElementById("mission-count");
+const missionTitle = document.getElementById("mission-title");
+const missionText = document.getElementById("mission-text");
+const missionBack = document.getElementById("mission-back");
+const missionNext = document.getElementById("mission-next");
+const missionExit = document.getElementById("mission-exit");
+
+// Each step has a title, a text, and (optionally) "run": something the page
+// does for you when you press Next to arrive at that step.
+const MISSION_STEPS = [
+  {
+    title: "Your target",
+    text: "WISE 0855 is a brown dwarf: a failed star, very faint and very close to us. It moves across the sky faster than almost anything else. Your mission is to see it move. Press Next and I will load it.",
+    run: null,
+  },
+  {
+    title: "Load the pictures",
+    text: "I have loaded WISE 0855 with the normal view. Wait for the pictures to finish loading (the status line under the picture will say so).",
+    run: () => {
+      const wise = targets.find((t) => t.id === "wise0855");
+      if (!wise) {
+        setStatus("WISE 0855 is not available. Is the server running?", true);
+        return;
+      }
+      setMode("normal");
+      goToTarget(wise);
+    },
+  },
+  {
+    title: "Press Play",
+    text: "Press Play (or the Space key). Most dots are stars and stay put. Look for the one dot that changes place from frame to frame.",
+    run: null,
+  },
+  {
+    title: "Go slowly",
+    text: "Now step through one frame at a time with the left and right arrow keys, or drag the slider. Follow the dot with your eyes. Note: the practice (mock) data moves its dot about 10 times faster than the real star, so it is easy to see.",
+    run: null,
+  },
+  {
+    title: "Blink compare",
+    text: "I opened Advanced tools for you. Under Blink compare, frame A is the first frame and B is the last. Press Blink: the moving dot seems to jump back and forth. Astronomers found Pluto this way.",
+    run: () => {
+      advancedPanel.open = true;
+    },
+  },
+  {
+    title: "Difference view",
+    text: "I switched to Difference view. Grey means nothing changed. Stars vanish, and the mover shows up as a white or black spot. Press Play to watch it.",
+    run: () => {
+      setMode("difference");
+      reload();
+    },
+  },
+  {
+    title: "Where should it be?",
+    text: "I switched back to Normal and turned on Expected path. The dashed line shows where known motion says WISE 0855 should be. On the practice (mock) data the dot moves faster than the real star, so the line only matches the dot in the first frame. On real data they should line up.",
+    run: () => {
+      showExpected = true; // loadFrames() draws the path once the pictures are in
+      expectedToggle.checked = true;
+      setMode("normal");
+      reload();
+      advancedPanel.open = true;
+    },
+  },
+  {
+    title: "Is it real?",
+    text: "Last check: look at 'Is it real?' in Frame info. Green is fine. Yellow means the detector or the colour changed, so a jump might come from the instrument and not from real motion. Well done, mission complete!",
+    run: null,
+  },
+];
+
+let missionIndex = 0;
+
+function showMissionStep(index, runIt) {
+  missionIndex = index;
+  const step = MISSION_STEPS[index];
+  missionCount.textContent = "Step " + (index + 1) + " of " + MISSION_STEPS.length;
+  missionTitle.textContent = step.title;
+  missionText.textContent = step.text;
+  missionBack.disabled = index === 0;
+  missionNext.textContent = index === MISSION_STEPS.length - 1 ? "Finish" : "Next";
+  // Only run the action when moving forward, so Back never changes the page.
+  if (runIt && step.run) step.run();
+}
+
+function closeMission() {
+  missionBox.hidden = true;
+  missionStart.hidden = false;
+}
+
+missionStart.addEventListener("click", () => {
+  missionStart.hidden = true;
+  missionBox.hidden = false;
+  showMissionStep(0, false);
+});
+missionNext.addEventListener("click", () => {
+  if (missionIndex >= MISSION_STEPS.length - 1) closeMission();
+  else showMissionStep(missionIndex + 1, true);
+});
+missionBack.addEventListener("click", () => {
+  if (missionIndex > 0) showMissionStep(missionIndex - 1, false);
+});
+missionExit.addEventListener("click", closeMission);
 start();
