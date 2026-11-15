@@ -17,7 +17,7 @@ import cache
 
 BASE = "http://127.0.0.1:8000"
 MOCK_FILE = Path(__file__).parent / "data" / "mock" / "mock_00.fits"
-STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR = Path(__file__).parent / "frontend"
 
 problems = 0
 

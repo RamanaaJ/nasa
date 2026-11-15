@@ -71,7 +71,7 @@ async def handle_unexpected_error(request, exc):
     return JSONResponse(status_code=500, content={"detail": errors.SERVER_ERROR_MESSAGE})
 
 
-STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR = Path(__file__).parent / "frontend"
 
 # Text shown in the /docs page for the settings
 RA_HELP = "Right ascension. Degrees (133.8) or hours (08h55m10.8s, 08:55:10.8)."
